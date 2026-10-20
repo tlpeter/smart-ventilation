@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5-dev
+
+- Fix: "Showers today" also counted a boost from the safety net (humidity above the absolute trigger). Now only a boost started by a fast rise counts as a shower. The Activity log notes what started each boost.
+- Fix: after a boost that ran its maximum time, the safety net waits until the room is clearly drier. A restart of the app (for example an update) forgot that, so a room that was still humid got a new boost right away. That is now kept.
+- Tests: what started a boost, and a restart while the room is still humid.
+
 ## 0.1.4-dev
 
 - Tests: the app is now also tested against a real Home Assistant Core (2026.10.2), like Smart Charging Planner and Smart Heating Planner. It uses demo fans and numbers as the ventilation unit and valves, simulates a shower with a humidity sensor, and checks the entity lists, the boost, the app's own sensors in Home Assistant, the history for the chart, and that nothing was sent to the fan or valves. It runs on every change on `dev` and every Monday.

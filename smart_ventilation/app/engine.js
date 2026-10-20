@@ -104,7 +104,7 @@ function round1(x) {
 // ---------------------------------------------------------------------------
 
 function newZoneState(now) {
-  return { state: 'idle', since: now, baseline: null, boostStart: null, reason: 'Waiting for readings', absLatch: false };
+  return { state: 'idle', since: now, baseline: null, boostStart: null, reason: 'Waiting for readings', absLatch: false, trigger: null };
 }
 
 // cfg: zone settings. st: the zone's state (changed in place and returned).
@@ -153,7 +153,9 @@ function evaluateZone(cfgIn, st, input) {
         st.baseline = round1(baselineAt(hum.history, now, cfg.baselineWindowMin * MIN, windowMs));
       }
       st.boostStart = now;
-      go('boost', trigger);
+      // What started it: 'shower' (a fast rise) or 'humid' (the safety net).
+      st.trigger = trigger.kind;
+      go('boost', trigger.reason);
       return result(st, before);
     }
   }
@@ -197,16 +199,18 @@ function detect(cfg, st, input, h, ref, now, windowMs) {
   }
   if (ownRise >= cfg.riseThreshold && tempOk) {
     const extra = refRise > 0 ? ` (house rose ${round1(refRise)})` : '';
-    return `Shower detected: +${round1(ownRise)} points in ${cfg.riseWindowMin} min${extra}`;
+    return { kind: 'shower', reason: `Shower detected: +${round1(ownRise)} points in ${cfg.riseWindowMin} min${extra}` };
   }
   if (h >= cfg.absoluteTrigger && !st.absLatch && (ref === null || h - ref >= cfg.stopMargin)) {
-    return `Humidity ${round1(h)}% is above ${cfg.absoluteTrigger}%`;
+    return { kind: 'humid', reason: `Humidity ${round1(h)}% is above ${cfg.absoluteTrigger}%` };
   }
   return null;
 }
 
 function result(st, before) {
-  return { st, change: st.state !== before ? { from: before, to: st.state, reason: st.reason } : null };
+  const change = st.state !== before ? { from: before, to: st.state, reason: st.reason } : null;
+  if (change && change.to === 'boost') change.trigger = st.trigger;
+  return { st, change };
 }
 
 // Numbers for the UI: what the zone sees right now.

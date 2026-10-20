@@ -150,3 +150,16 @@ test('history helpers: a value counts until the next sample, old samples are dro
   assert.equal(engine.median([3, 1, 2]), 2);
   assert.equal(engine.median([1, 2, 3, 4]), 2.5);
 });
+
+test('a boost knows what started it: a shower (fast rise) or the safety net (humid)', () => {
+  const h = steady(55, [[3, 65]]);
+  const st = engine.newZoneState(T0);
+  const { change } = engine.evaluateZone({}, st, input(h, 3));
+  assert.equal(st.trigger, 'shower');
+  assert.equal(change.trigger, 'shower');
+  const h2 = steady(84, [[20, 86]]);
+  const st2 = engine.newZoneState(T0);
+  const r2 = engine.evaluateZone({ riseThreshold: 20 }, st2, input(h2, 20));
+  assert.equal(st2.trigger, 'humid');
+  assert.equal(r2.change.trigger, 'humid');
+});

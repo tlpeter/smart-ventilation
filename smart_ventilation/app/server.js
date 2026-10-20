@@ -59,6 +59,10 @@ function restoreRuntime() {
     // not older than the maximum boost time.
     const fresh = old && Number.isFinite(old.since) && now() - old.since < z.maxBoostMin * engine.MIN;
     zoneStates[z.id] = fresh && ['boost', 'afterrun'].includes(old.state) ? { ...engine.newZoneState(now()), ...old } : engine.newZoneState(now());
+    // Keep the safety-net lock: after a boost that ran its maximum time, the
+    // absolute trigger waits until the room is clearly drier. A restart (for
+    // example an update) must not start a new boost because of it.
+    if (old && old.absLatch === true) zoneStates[z.id].absLatch = true;
   }
 }
 
@@ -236,7 +240,7 @@ function evaluate() {
       changed = true;
       const fig = engine.zoneFigures(z, zoneStates[z.id], input);
       ha.log(`${z.name}: ${change.from} → ${change.to} (${change.reason})`);
-      addLog({ type: 'zone', zone: z.id, name: z.name, from: change.from, to: change.to, reason: change.reason, humidity: fig.humidity, baseline: zoneStates[z.id].baseline });
+      addLog({ type: 'zone', zone: z.id, name: z.name, from: change.from, to: change.to, reason: change.reason, trigger: change.trigger || null, humidity: fig.humidity, baseline: zoneStates[z.id].baseline });
     }
   }
   if (changed) saveRuntime();
@@ -301,7 +305,11 @@ function status() {
   const zones = s.zones.map((z) => {
     const st = zoneStates[z.id] || engine.newZoneState(t);
     const fig = engine.zoneFigures(z, st, zoneInput(z, t));
-    const showersToday = logEntries.filter((e) => e.type === 'zone' && e.zone === z.id && e.to === 'boost' && e.from === 'idle' && localDay(e.t) === today).length;
+    // Only a boost started by a fast rise is a shower; the safety net
+    // (humidity above the absolute trigger) is not. Older log lines have no
+    // trigger: their reason tells.
+    const isShower = (e) => e.trigger ? e.trigger === 'shower' : /^Shower detected/.test(e.reason || '');
+    const showersToday = logEntries.filter((e) => e.type === 'zone' && e.zone === z.id && e.to === 'boost' && e.from === 'idle' && isShower(e) && localDay(e.t) === today).length;
     return { id: z.id, name: z.name, enabled: z.enabled, state: z.enabled ? st.state : 'off', since: st.since, reason: z.enabled ? st.reason : 'Zone is switched off', boostStart: st.boostStart, figures: fig, showersToday, actuators: z.actuators };
   });
   const acts = s.actuators.map((a) => {
