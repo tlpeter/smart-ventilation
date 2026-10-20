@@ -294,7 +294,15 @@ function bindPickers(root) {
 
 function markDirty() {
   dirty = true;
-  $('#save-msg').innerHTML = '<span class="muted">Unsaved changes</span>';
+  $('#save-msg').innerHTML = '<b>Unsaved changes</b> · press Save settings to keep them';
+  showDirty();
+}
+
+// The save bar turns orange while there are unsaved changes.
+function showDirty() {
+  $('#save-bar').classList.toggle('dirty', dirty);
+  $('#discard-btn').hidden = !dirty;
+  if (window.unsavedGuard) unsavedGuard.update();
 }
 
 function renderSettings() {
@@ -538,9 +546,12 @@ $('#save-btn').addEventListener('click', async () => {
     suggestNotes = [];
     msg.innerHTML = '<span class="ok">Saved.</span>';
     renderSettings();
+    showDirty();
+    unsavedGuard.writeDone(true);
   } catch (err) {
     const list = (err.body && err.body.errors) || [err.message];
     msg.innerHTML = `<b style="color:var(--bad)">Not saved:</b><ul class="errors">${list.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>`;
+    unsavedGuard.writeDone(false, list[0]);
   }
 });
 
@@ -559,4 +570,25 @@ async function render() {
 
 render();
 setInterval(() => { if (tab === 'home') renderHome(); }, 10000);
-window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+// Leaving Settings with unsaved changes asks first (save, discard or stay),
+// also when leaving the app. The shared guard is in unsaved.js.
+unsavedGuard.init({ nav: '#main-nav .tab' });
+$('#discard-btn').addEventListener('click', () => discardSettings());
+unsavedGuard.addSource({
+  name: 'Settings',
+  bar: false, // Settings has its own save bar
+  root: () => $('#tab-settings'),
+  isDirty: () => dirty,
+  save: () => $('#save-btn').click(),
+  discard: () => discardSettings(),
+});
+
+// Throw away the changes: back to the saved settings.
+async function discardSettings() {
+  dirty = false;
+  suggestNotes = [];
+  $('#save-msg').innerHTML = '';
+  showDirty();
+  await loadSettings();
+  renderSettings();
+}

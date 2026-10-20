@@ -1,5 +1,5 @@
 name: Smart Ventilation (dev)
-version: "0.1.2-dev"
+version: "0.1.3-dev"
 slug: smart_ventilation
 description: "TEST VERSION (dry-run): ventilates showers and bathrooms on the humidity curve."
 url: https://github.com/tlpeter/smart-ventilation

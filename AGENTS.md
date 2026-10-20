@@ -56,6 +56,8 @@ It is a sibling of [Smart Charging Planner](https://github.com/tlpeter/smart-cha
 
 ## Style
 
+- `public/unsaved.js` (the unsaved-changes guard) is shared with Smart Charging Planner and Smart Heating Planner: keep the three copies the same.
+
 - Write code comments and UI texts in plain English: short sentences, no jargon.
 - Keep it simple: no new dependencies without a good reason (only `ws` now).
 - Check UI changes with a screenshot, both on desktop and on phone width.

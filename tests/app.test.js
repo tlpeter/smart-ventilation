@@ -84,7 +84,7 @@ test('the app against a fake Home Assistant', async (t) => {
   await until(async () => (await get('/api/status')).connected, 'connected');
 
   await t.test('the page and its files are served', async () => {
-    for (const f of ['/', '/app.js', '/styles.css', '/logo.svg']) assert.equal((await fetch(base + f)).status, 200, f);
+    for (const f of ['/', '/app.js', '/styles.css', '/logo.svg', '/unsaved.js']) assert.equal((await fetch(base + f)).status, 200, f);
     const st = await get('/api/status');
     assert.equal(st.mode, 'dry-run');
     assert.equal(st.configured, false);

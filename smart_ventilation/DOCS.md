@@ -25,6 +25,8 @@ After a boost that ended on the maximum time, the absolute trigger waits until t
 
 Open the app from the sidebar (or **Open web UI** on the app's page in Home Assistant) and go to **Settings**. The Configuration tab of the app in Home Assistant only has *Publish sensors* and *Log level*; everything else is in the app itself.
 
+Changes count only after **Save settings**. While there are unsaved changes the save bar is orange; leaving Settings first asks whether to save, discard or stay.
+
 Set up in this order: **1 · Actuators** (fan and valves, with their percentages), **2 · Zones** (a room with its humidity sensor), **3 · General** (optional). With nothing set up yet, **Suggest a set-up** fills in a proposal from the entities in Home Assistant: check it, then press **Save settings**.
 
 ## Settings › Actuators

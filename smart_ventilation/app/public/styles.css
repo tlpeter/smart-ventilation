@@ -154,3 +154,10 @@ a { color: var(--accent); }
 .picker-opt span { display: block; }
 .picker-opt small { display: block; color: var(--muted); font-size: 12px; word-break: break-all; }
 .picker-head { padding: 8px 12px; font-size: 12px; color: var(--muted); background: var(--surface); }
+
+/* Unsaved changes: the save bar turns orange. */
+.save-bar.dirty { background: #c9781b; color: #fff; border-color: transparent; }
+.save-bar.dirty .primary { background: #fff; color: #7a4508; }
+.save-bar.dirty .muted, .save-bar.dirty .ok { color: #fff; }
+.save-bar.dirty b, .save-bar.dirty .errors { color: #fff !important; }
+.save-bar.dirty .secondary { background: rgba(255, 255, 255, 0.2); color: #fff; }

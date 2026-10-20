@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3-dev
+
+- Unsaved changes are no longer lost without warning. While Settings has unsaved changes, the save bar turns orange and shows **Discard** next to **Save settings**. Leaving Settings (Home, Activity) first asks: save, discard or stay. When saving fails, the reason stays in the bar.
+- The same guard (`unsaved.js`) is used in Smart Charging Planner and Smart Heating Planner.
+
 ## 0.1.2-dev
 
 - Fix: the entity search fields showed no list in the Home Assistant phone app, so for example a reference sensor could not be chosen. They now have their own list: tap the field to see the entities, type to narrow it down, tap one to choose it.
