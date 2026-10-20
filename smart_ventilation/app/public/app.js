@@ -44,7 +44,8 @@ function fmt(v, unit = '') {
 // ---------------------------------------------------------------------------
 
 let tab = 'home';
-let sub = 'zones';
+let sub = 'actuators';
+let suggestNotes = [];
 
 $$('#main-nav .tab').forEach((b) => b.addEventListener('click', () => {
   tab = b.dataset.tab;
@@ -255,11 +256,33 @@ function renderSettings() {
   if (!draft) return;
   const el = $('#settings-body');
   $('#save-bar').hidden = sub === 'diag';
-  if (sub === 'zones') el.innerHTML = datalists() + zonesView();
-  else if (sub === 'actuators') el.innerHTML = datalists() + actuatorsView();
-  else if (sub === 'general') el.innerHTML = datalists() + generalView();
+  const start = draft.actuators.length === 0 && draft.zones.length === 0 && sub !== 'diag' ? startCard() : '';
+  // general still shows its own page below the start card
+  if (start && sub !== 'general') el.innerHTML = datalists() + start;
+  else if (sub === 'zones') el.innerHTML = datalists() + zonesView();
+  else if (sub === 'actuators') el.innerHTML = datalists() + notesCard() + actuatorsView();
+  else if (sub === 'general') el.innerHTML = datalists() + start + generalView();
   else el.innerHTML = diagView();
   bind();
+}
+
+// Shown while nothing is set up yet.
+function startCard() {
+  return `<div class="card"><h2>Set up in three steps</h2>
+    <ol>
+      <li><b>Actuators</b>: your ventilation unit (fan) and a valve per room, with the percentage for rest, boost and afterrun.</li>
+      <li><b>Zones</b>: one per room (Shower, Bathroom): its humidity sensor and which fan and valve it uses.</li>
+      <li><b>General</b> (optional): reference sensors in other rooms, night mode.</li>
+    </ol>
+    <p class="small">The app can make a first proposal from the entities in Home Assistant. Nothing is saved until you press <b>Save settings</b>.</p>
+    <button class="primary" data-act="suggest">Suggest a set-up</button>
+    <button class="secondary" data-act="add-act">+ Add actuator by hand</button></div>`;
+}
+
+// What the proposal guessed, shown until the settings are saved.
+function notesCard() {
+  if (!suggestNotes.length) return '';
+  return `<div class="card small"><b>Proposal filled in. Check it, then press Save settings.</b><ul>${suggestNotes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></div>`;
 }
 
 function num(label, key, value, min, max, step, hint) {
@@ -422,16 +445,32 @@ function bind() {
     markDirty();
     renderSettings();
   };
-  const addAct = $('[data-act="add-act"]', el);
-  if (addAct) addAct.onclick = () => {
+  const sug = $('[data-act="suggest"]', el);
+  if (sug) sug.onclick = async () => {
+    sug.disabled = true;
+    try {
+      const r = await api('/api/suggest');
+      draft = r.settings;
+      suggestNotes = r.notes || [];
+      markDirty();
+      sub = 'actuators';
+      $$('#settings-nav .subtab').forEach((x) => x.classList.toggle('active', x.dataset.sub === sub));
+    } catch (err) {
+      suggestNotes = [`Could not make a proposal: ${err.message}`];
+    }
+    renderSettings();
+  };
+  $$('[data-act="add-act"]', el).forEach((addAct) => addAct.onclick = () => {
     const hasFan = draft.actuators.some((a) => a.type === 'fan');
     const id = `act_${Date.now().toString(36)}`;
     draft.actuators.push(hasFan
       ? { id, name: `Valve ${draft.actuators.length}`, type: 'number', entity: null, fanMode: 'percentage', idle: '', boost: 100, afterrun: '', restricted: 10, nightMax: '' }
       : { id, name: 'Ventilation unit', type: 'fan', entity: null, fanMode: 'percentage', idle: 10, boost: 75, afterrun: 50, restricted: '', nightMax: '' });
     markDirty();
+    sub = 'actuators';
+    $$('#settings-nav .subtab').forEach((x) => x.classList.toggle('active', x.dataset.sub === sub));
     renderSettings();
-  };
+  });
   const addRef = $('[data-act="add-ref"]', el);
   if (addRef) addRef.onclick = () => {
     const v = $('#ref-new').value.trim();
@@ -448,6 +487,7 @@ $('#save-btn').addEventListener('click', async () => {
     const r = await api('/api/settings', { method: 'POST', body: JSON.stringify(draft) });
     draft = r.settings;
     dirty = false;
+    suggestNotes = [];
     msg.innerHTML = '<span class="ok">Saved.</span>';
     renderSettings();
   } catch (err) {

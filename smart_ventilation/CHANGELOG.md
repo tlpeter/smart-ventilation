@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1-dev
+
+- Settings is easier to find your way in: the tabs are now numbered in the order you set them up (1 · Actuators, 2 · Zones, 3 · General), and Settings opens on Actuators.
+- New: **Suggest a set-up**. With nothing set up yet, the app proposes your fan, valves, the humidity sensor per room and reference sensors from the entities in Home Assistant. The fan starts at 10/75/50%, a valve's rest level is its value now. Nothing is saved until you press Save settings.
+
 ## 0.1.0-dev
 
 - First test version (dry-run): the app follows your humidity sensors and shows what it would set. It never sends anything to your fan or valves.

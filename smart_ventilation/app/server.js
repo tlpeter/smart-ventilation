@@ -337,6 +337,63 @@ function entities() {
   return out;
 }
 
+// A suggested set-up, made from the entities in Home Assistant. Nothing is
+// saved: the page shows it, the user checks it and presses Save.
+const SHOWER_WORDS = /douche|shower/i;
+const BATH_WORDS = /badkamer|bathroom|\bbad\b|\bbath\b/i;
+
+function suggestSetup() {
+  const e = entities();
+  const text = (m) => `${m.entity_id} ${m.name}`.replace(/_/g, ' ');
+  const notes = [];
+  const actuatorsList = [];
+
+  let fan = e.fan.length === 1 ? e.fan[0] : e.fan.find((f) => /air|ventil|duco|wtw|mvhr|itho|zehnder|brink/i.test(text(f))) || null;
+  if (fan) {
+    const presetOnly = !fan.percentage && fan.presets.length;
+    actuatorsList.push({ id: 'unit', name: 'Ventilation unit', type: 'fan', entity: fan.entity_id, fanMode: presetOnly ? 'preset' : 'percentage', idle: presetOnly ? fan.presets[0] : 10, boost: presetOnly ? fan.presets.at(-1) : 75, afterrun: presetOnly ? fan.presets.at(-1) : 50, restricted: '', nightMax: '' });
+    notes.push(`Fan: ${fan.name}. Rest 10%, boost 75%, afterrun 50% are starting values.`);
+  } else {
+    notes.push(e.fan.length ? 'More than one fan found: choose the ventilation unit yourself.' : 'No fan found: add your ventilation unit yourself.');
+  }
+
+  const valves = e.number.filter((n) => /valve|klep/i.test(text(n)));
+  valves.forEach((v, i) => {
+    const now = Number(v.state);
+    const rest = Number.isFinite(now) ? Math.min(v.max, Math.max(v.min, Math.round(now))) : Math.round((v.min + v.max) / 2);
+    const name = SHOWER_WORDS.test(text(v)) ? 'Shower valve' : BATH_WORDS.test(text(v)) ? 'Bathroom valve' : `Valve ${i + 1}`;
+    actuatorsList.push({ id: `valve_${i + 1}`, name, type: 'number', entity: v.entity_id, fanMode: 'percentage', idle: rest, boost: v.max, afterrun: Math.round((rest + v.max) / 2), restricted: Math.min(v.max, Math.max(v.min, 10)), nightMax: '' });
+  });
+  if (valves.length) notes.push(`${valves.length} valve(s) found. Rest = their value now; check boost, afterrun and "while another zone boosts".`);
+
+  const humidity = e.humidity;
+  const pickSensor = (words) => humidity.find((h) => words.test(text(h))) || null;
+  const zonesList = [];
+  const fanIds = fan ? ['unit'] : [];
+  const valveActs = actuatorsList.filter((a) => a.type === 'number');
+  if (valveActs.length) {
+    for (const a of valveActs) {
+      const zoneName = a.name.replace(/ valve$/, '');
+      const words = zoneName === 'Shower' ? SHOWER_WORDS : zoneName === 'Bathroom' ? BATH_WORDS : null;
+      const sensor = words ? pickSensor(words) : null;
+      zonesList.push({ name: zoneName, humidity: sensor ? sensor.entity_id : null, actuators: [...fanIds, a.id] });
+    }
+  } else {
+    for (const [zoneName, words] of [['Shower', SHOWER_WORDS], ['Bathroom', BATH_WORDS]]) {
+      const sensor = pickSensor(words);
+      zonesList.push({ name: zoneName, humidity: sensor ? sensor.entity_id : null, actuators: [...fanIds] });
+    }
+  }
+  const missing = zonesList.filter((z) => !z.humidity).map((z) => z.name);
+  if (missing.length) notes.push(`Choose the humidity sensor for: ${missing.join(', ')}.`);
+
+  const used = new Set(zonesList.map((z) => z.humidity).filter(Boolean));
+  const references = humidity.filter((h) => !used.has(h.entity_id) && !SHOWER_WORDS.test(text(h)) && !BATH_WORDS.test(text(h))).slice(0, 3).map((h) => h.entity_id);
+  if (references.length) notes.push(`Reference sensors (Settings › General): ${references.length} other humidity sensor(s). Remove any that are outside or in a wet room.`);
+
+  return { settings: settings.normalise({ actuators: actuatorsList, zones: zonesList, general: { ...settings.get().general, references } }), notes };
+}
+
 function zoneChart(zoneId) {
   const s = settings.get();
   const z = s.zones.find((x) => x.id === zoneId);
@@ -425,6 +482,7 @@ async function handleApi(req, res, url) {
   if (req.method === 'GET' && p === '/api/status') return sendJson(res, 200, status());
   if (req.method === 'GET' && p === '/api/settings') return sendJson(res, 200, settings.get());
   if (req.method === 'GET' && p === '/api/entities') return sendJson(res, 200, entities());
+  if (req.method === 'GET' && p === '/api/suggest') return sendJson(res, 200, suggestSetup());
   if (req.method === 'GET' && p === '/api/log') return sendJson(res, 200, logEntries.slice(-200).reverse());
   if (req.method === 'GET' && p === '/api/chart') {
     const c = zoneChart(url.searchParams.get('zone') || '');

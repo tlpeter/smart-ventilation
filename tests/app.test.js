@@ -100,6 +100,27 @@ test('the app against a fake Home Assistant', async (t) => {
     assert.equal(e.switch[0].entity_id, 'switch.kitchen');
   });
 
+  await t.test('a suggested set-up from the entities, valid as it is', async () => {
+    const { settings: s, notes } = await get('/api/suggest');
+    const byName = Object.fromEntries(s.actuators.map((a) => [a.name, a]));
+    assert.equal(byName['Ventilation unit'].entity, 'fan.open_air_mini');
+    assert.equal(byName['Ventilation unit'].fanMode, 'percentage');
+    assert.deepEqual([byName['Ventilation unit'].idle, byName['Ventilation unit'].boost, byName['Ventilation unit'].afterrun], [10, 75, 50]);
+    const sv = byName['Shower valve'];
+    assert.equal(sv.entity, 'number.shower_valve_capacity');
+    assert.deepEqual([sv.idle, sv.boost, sv.afterrun, sv.restricted], [50, 100, 75, 10], 'rest = its value now');
+    assert.equal(byName['Bathroom valve'].entity, 'number.bath_valve_capacity');
+    const zones = Object.fromEntries(s.zones.map((z) => [z.name, z]));
+    assert.equal(zones.Shower.humidity, 'sensor.shower_humidity');
+    assert.deepEqual(zones.Shower.actuators, ['unit', sv.id]);
+    assert.equal(zones.Bathroom.humidity, 'sensor.bath_humidity');
+    assert.deepEqual(s.general.references, ['sensor.hall_humidity']);
+    assert.ok(notes.length >= 2);
+    assert.equal((await get('/api/status')).configured, false, 'a proposal is not saved');
+    const r = await post('/api/settings', s);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+  });
+
   await t.test('wrong settings are refused with reasons', async () => {
     const bad = JSON.parse(JSON.stringify(SETUP));
     bad.actuators[1].boost = 150;

@@ -21,6 +21,12 @@ Every zone (room) goes through the same states:
 
 After a boost that ended on the maximum time, the absolute trigger waits until the humidity is clearly below it again, so a humid day does not keep restarting the boost.
 
+## Where to set it up
+
+Open the app from the sidebar (or **Open web UI** on the app's page in Home Assistant) and go to **Settings**. The Configuration tab of the app in Home Assistant only has *Publish sensors* and *Log level*; everything else is in the app itself.
+
+Set up in this order: **1 · Actuators** (fan and valves, with their percentages), **2 · Zones** (a room with its humidity sensor), **3 · General** (optional). With nothing set up yet, **Suggest a set-up** fills in a proposal from the entities in Home Assistant: check it, then press **Save settings**.
+
 ## Settings › Actuators
 
 Add the things that move or steer the air. Each actuator has a type, an entity (chosen with the search box) and a value per level.

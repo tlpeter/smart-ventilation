@@ -22,7 +22,7 @@ A Home Assistant app (add-on) that ventilates showers and bathrooms on the **hum
 1. In Home Assistant: **Settings › Apps › App store › ⋮ › Repositories**.
 2. Add `https://github.com/tlpeter/smart-ventilation` (the test version is on the `dev` branch: `https://github.com/tlpeter/smart-ventilation#dev`).
 3. Install **Smart Ventilation (dev)**, start it, and open it from the sidebar.
-4. Under **Settings**, add the actuators (your fan and valves), then a zone per room, then save.
+4. Open **Settings** in the app (not the Configuration tab in Home Assistant). Press **Suggest a set-up**, or add the actuators (your fan and valves) and then a zone per room yourself. Check the percentages and press **Save settings**.
 
 See [DOCS.md](smart_ventilation/DOCS.md) for every setting.
 
