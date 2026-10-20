@@ -1,0 +1,51 @@
+homeassistant:
+  name: Smart Ventilation compatibility test
+  latitude: 51.37
+  longitude: 5.19
+  elevation: 0
+  unit_system: metric
+  time_zone: Europe/Amsterdam
+  country: NL
+  currency: EUR
+
+default_config:
+
+# Demo entities, among them fans with a speed percentage and number
+# entities with a min/max (used as the ventilation unit and the valves).
+demo:
+
+# The test sets these to simulate a shower.
+input_number:
+  shower_rh:
+    name: Shower RH input
+    min: 0
+    max: 100
+    step: 0.1
+    initial: 55
+  bathroom_rh:
+    name: Bathroom RH input
+    min: 0
+    max: 100
+    step: 0.1
+    initial: 54
+
+template:
+  - sensor:
+      - name: Shower humidity
+        unique_id: sv_shower_humidity
+        unit_of_measurement: "%"
+        device_class: humidity
+        state_class: measurement
+        state: "{{ states('input_number.shower_rh') }}"
+      - name: Bathroom humidity
+        unique_id: sv_bathroom_humidity
+        unit_of_measurement: "%"
+        device_class: humidity
+        state_class: measurement
+        state: "{{ states('input_number.bathroom_rh') }}"
+      - name: Hall humidity
+        unique_id: sv_hall_humidity
+        unit_of_measurement: "%"
+        device_class: humidity
+        state_class: measurement
+        state: "52"

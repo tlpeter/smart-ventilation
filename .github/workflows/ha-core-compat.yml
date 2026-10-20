@@ -1,0 +1,56 @@
+name: Home Assistant Core compatibility
+
+# Runs the real app against a real Home Assistant Core (in Docker), with demo
+# fans and numbers and two humidity sensors the test can change. Catches
+# changes in Home Assistant that the fake Home Assistant in the other tests
+# cannot show.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/ha-core-compat.yml'
+      - 'smart_ventilation/app/**'
+      - 'tests/ha-core/**'
+      - 'tests/ha-core-compat.test.js'
+  workflow_dispatch:
+  schedule:
+    - cron: '41 4 * * 1'
+
+permissions:
+  contents: read
+
+env:
+  HA_CORE_VERSION: '2026.10.2'
+
+jobs:
+  compatibility:
+    name: Core 2026.10.2
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: smart_ventilation/app
+      - name: Start Home Assistant Core
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ha-core-config"
+          cp tests/ha-core/configuration.yaml "$RUNNER_TEMP/ha-core-config/configuration.yaml"
+          docker run --detach --name sv-ha-core \
+            --publish 8123:8123 \
+            --volume "$RUNNER_TEMP/ha-core-config:/config" \
+            "ghcr.io/home-assistant/home-assistant:${HA_CORE_VERSION}"
+      - name: Test Smart Ventilation against real Core
+        run: node --test tests/ha-core-compat.test.js
+        env:
+          HA_CORE_TEST: '1'
+      - name: Home Assistant log on failure
+        if: failure()
+        run: docker logs sv-ha-core
+      - name: Stop Home Assistant
+        if: always()
+        run: docker rm --force sv-ha-core

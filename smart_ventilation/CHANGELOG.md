@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4-dev
+
+- Tests: the app is now also tested against a real Home Assistant Core (2026.10.2), like Smart Charging Planner and Smart Heating Planner. It uses demo fans and numbers as the ventilation unit and valves, simulates a shower with a humidity sensor, and checks the entity lists, the boost, the app's own sensors in Home Assistant, the history for the chart, and that nothing was sent to the fan or valves. It runs on every change on `dev` and every Monday.
+
 ## 0.1.3-dev
 
 - Unsaved changes are no longer lost without warning. While Settings has unsaved changes, the save bar turns orange and shows **Discard** next to **Save settings**. Leaving Settings (Home, Activity) first asks: save, discard or stay. When saving fails, the reason stays in the bar.
