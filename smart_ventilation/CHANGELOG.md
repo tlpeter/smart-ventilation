@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2-dev
+
+- Fix: the entity search fields showed no list in the Home Assistant phone app, so for example a reference sensor could not be chosen. They now have their own list: tap the field to see the entities, type to narrow it down, tap one to choose it.
+- The list shows the name, the entity id and the value now. A humidity or temperature sensor that Home Assistant does not mark as one can still be found under "Other sensors" by typing part of its name.
+- Reference sensors: the sensors of your zones and the ones already chosen are left out of the list, and tapping a sensor adds it right away.
+
 ## 0.1.1-dev
 
 - Settings is easier to find your way in: the tabs are now numbered in the order you set them up (1 · Actuators, 2 · Zones, 3 · General), and Settings opens on Actuators.

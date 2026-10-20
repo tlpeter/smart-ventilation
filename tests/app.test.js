@@ -98,6 +98,7 @@ test('the app against a fake Home Assistant', async (t) => {
     assert.deepEqual(e.fan[0].presets, []);
     assert.equal(e.number.length, 2);
     assert.equal(e.switch[0].entity_id, 'switch.kitchen');
+    assert.equal(e.sensor.length, 4, 'all sensors, for the "Other sensors" part of the search list');
   });
 
   await t.test('a suggested set-up from the entities, valid as it is', async () => {

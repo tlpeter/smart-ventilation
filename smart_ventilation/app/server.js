@@ -324,6 +324,7 @@ function status() {
 const ENTITY_KINDS = {
   humidity: (m) => m.domain === 'sensor' && (m.device_class === 'humidity' || m.unit === '%' && /humid|vocht|rv/i.test(m.entity_id + m.name)),
   temperature: (m) => m.domain === 'sensor' && (m.device_class === 'temperature' || /°C|°F/.test(m.unit || '')),
+  sensor: (m) => m.domain === 'sensor',
   fan: (m) => m.domain === 'fan',
   number: (m) => m.domain === 'number',
   select: (m) => m.domain === 'select',

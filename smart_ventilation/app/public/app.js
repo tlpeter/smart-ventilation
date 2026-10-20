@@ -236,15 +236,60 @@ function meta(entityId) {
   return null;
 }
 
-function datalists() {
-  return Object.entries(ents || {}).map(([kind, list]) =>
-    `<datalist id="dl-${kind}">${list.map((m) => `<option value="${esc(m.entity_id)}">${esc(m.name)}</option>`).join('')}</datalist>`).join('');
-}
+// Entity picker: a text field with our own search list. (The browser's
+// <datalist> shows nothing in the Home Assistant phone app.)
+function datalists() { return ''; }
 
 function picker(kind, value, attrs, placeholder) {
   const m = value ? meta(value) : null;
-  const note = value ? (m ? esc(m.name) + (m.state !== undefined ? ` · now ${esc(m.state)}${m.unit ? ' ' + esc(m.unit) : ''}` : '') : '<span style="color:var(--bad)">not found in Home Assistant</span>') : 'Type to search';
-  return `<input list="dl-${kind}" value="${esc(value || '')}" placeholder="${esc(placeholder || 'Search entity…')}" autocomplete="off" ${attrs}><div class="hint">${note}</div>`;
+  const note = value ? (m ? esc(m.name) + (m.state !== undefined ? ` · now ${esc(m.state)}${m.unit ? ' ' + esc(m.unit) : ''}` : '') : '<span style="color:var(--bad)">not found in Home Assistant</span>') : 'Tap and type to search';
+  return `<div class="picker" data-kind="${esc(kind)}"><input value="${esc(value || '')}" placeholder="${esc(placeholder || 'Search entity…')}" autocomplete="off" autocapitalize="off" spellcheck="false" ${attrs}><div class="picker-list" hidden></div></div><div class="hint">${note}</div>`;
+}
+
+function pickerMatches(kind, query) {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const hit = (m) => words.every((w) => `${m.entity_id} ${m.name}`.toLowerCase().includes(w));
+  // Reference sensors: humidity sensors that are not a zone sensor and not chosen yet.
+  const skip = kind === 'reference' ? new Set([...draft.general.references, ...draft.zones.map((z) => z.humidity)]) : new Set();
+  const base = kind === 'reference' ? 'humidity' : kind;
+  const own = ((ents && ents[base]) || []).filter((m) => !skip.has(m.entity_id) && hit(m));
+  // Not in the usual list (for example a humidity sensor without a device
+  // class)? Then look in all sensors.
+  if ((base === 'humidity' || base === 'temperature') && own.length < 5 && words.length) {
+    const ids = new Set([...own.map((m) => m.entity_id), ...skip]);
+    return { own, other: ((ents && ents.sensor) || []).filter((m) => !ids.has(m.entity_id) && hit(m)) };
+  }
+  return { own, other: [] };
+}
+
+function bindPickers(root) {
+  $$('.picker', root).forEach((box) => {
+    const input = $('input', box);
+    const list = $('.picker-list', box);
+    const option = (m) => `<button type="button" class="picker-opt" data-id="${esc(m.entity_id)}"><span>${esc(m.name)}</span><small>${esc(m.entity_id)}${m.state !== undefined ? ` · ${esc(m.state)}${m.unit ? ' ' + esc(m.unit) : ''}` : ''}</small></button>`;
+    const show = () => {
+      const { own, other } = pickerMatches(box.dataset.kind, input.value === input.defaultValue ? '' : input.value);
+      const LIMIT = 40;
+      let html = own.slice(0, LIMIT).map(option).join('');
+      if (other.length) html += `<div class="picker-head">Other sensors</div>${other.slice(0, LIMIT).map(option).join('')}`;
+      if (!html) html = `<div class="picker-head">${box.dataset.kind === 'reference' && !input.value ? 'No other humidity sensors: the ones in your zones and the ones already chosen are left out' : 'Nothing found'}</div>`;
+      if (own.length + other.length > 2 * LIMIT) html += '<div class="picker-head">Type more to narrow the list</div>';
+      list.innerHTML = html;
+      list.hidden = false;
+    };
+    input.addEventListener('focus', show);
+    input.addEventListener('input', show);
+    input.addEventListener('blur', () => setTimeout(() => { list.hidden = true; }, 150));
+    input.addEventListener('keydown', (e) => { if (e.key === 'Escape') list.hidden = true; });
+    list.addEventListener('pointerdown', (e) => {
+      const btn = e.target.closest('.picker-opt');
+      if (!btn) return;
+      e.preventDefault();
+      input.value = btn.dataset.id;
+      list.hidden = true;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
 }
 
 function markDirty() {
@@ -370,7 +415,7 @@ function generalView() {
   return `<div class="card"><h2>Reference sensors</h2>
       <p class="muted small">Optional. Humidity sensors in other rooms. The app uses their median to ignore weather (the whole house getting humid) and to know when the bathroom is back to normal.</p>
       <div class="refs">${g.references.map((r, i) => `<span class="chip">${esc((meta(r) || {}).name || r)} <button data-act="del-ref" data-i="${i}" aria-label="Remove">✕</button></span>`).join('') || '<span class="muted small">None chosen.</span>'}</div>
-      <div class="row"><div style="flex:1">${picker('humidity', '', 'id="ref-new"')}</div><button class="secondary" data-act="add-ref">Add</button></div>
+      <div class="row"><div style="flex:1">${picker('reference', '', 'id="ref-new"', 'Search humidity sensor…')}</div><button class="secondary" data-act="add-ref">Add</button></div>
     </div>
     <div class="card"><h2>Night</h2>
       <label class="check"><input type="checkbox" data-g="nightEnabled" ${g.nightEnabled ? 'checked' : ''}>Use the night maximum of the actuators during this time</label>
@@ -477,6 +522,9 @@ function bind() {
     if (v && !draft.general.references.includes(v)) { draft.general.references.push(v); markDirty(); }
     renderSettings();
   };
+  const refNew = $('#ref-new', el);
+  if (refNew) refNew.addEventListener('change', () => { if (meta(refNew.value.trim())) addRef.onclick(); });
+  bindPickers(el);
   $$('[data-act="del-ref"]', el).forEach((b) => { b.onclick = () => { draft.general.references.splice(Number(b.dataset.i), 1); markDirty(); renderSettings(); }; });
 }
 

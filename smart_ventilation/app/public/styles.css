@@ -137,3 +137,20 @@ button { font: inherit; cursor: pointer; }
 .refs .chip { margin: 0 6px 6px 0; }
 .refs .chip button { border: 0; background: none; color: var(--muted); padding: 0 0 0 4px; }
 a { color: var(--accent); }
+
+/* Entity picker */
+.picker { position: relative; }
+.picker-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20;
+  max-height: 300px; overflow-y: auto; background: var(--card);
+  border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.picker-opt {
+  display: block; width: 100%; text-align: left; border: 0; background: none; color: var(--text);
+  padding: 9px 12px; border-top: 1px solid var(--border);
+}
+.picker-opt:first-child { border-top: 0; }
+.picker-opt:hover, .picker-opt:focus { background: var(--chip); }
+.picker-opt span { display: block; }
+.picker-opt small { display: block; color: var(--muted); font-size: 12px; word-break: break-all; }
+.picker-head { padding: 8px 12px; font-size: 12px; color: var(--muted); background: var(--surface); }
