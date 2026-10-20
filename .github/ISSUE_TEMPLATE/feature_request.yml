@@ -1,0 +1,16 @@
+name: Idea or question
+description: A new feature, a ventilation brand that does not work yet, or a question
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: Describe what you want to do and why. For a new brand, name the Home Assistant integration (and link it).
+    validations:
+      required: true
+  - type: textarea
+    id: entities
+    attributes:
+      label: Entities (for a new brand, optional)
+      description: The fan, number, select or switch entities the integration gives you, with their attributes from Developer tools › States. A diagnostics file helps too.

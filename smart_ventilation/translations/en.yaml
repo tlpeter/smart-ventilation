@@ -1,0 +1,12 @@
+configuration:
+  publish_sensors:
+    name: Publish sensors
+    description: >-
+      Off by default. When on, the app writes its own sensors to Home
+      Assistant: per zone sensor.smart_ventilation_<zone>_state, _baseline and
+      binary_sensor.smart_ventilation_<zone>_shower_detected, and per actuator
+      sensor.smart_ventilation_<actuator>_advised_level. It never writes any
+      other entity.
+  log_level:
+    name: Log level
+    description: How much the app writes to its log. Use debug when reporting a problem.

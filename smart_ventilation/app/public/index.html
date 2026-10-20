@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Ventilation</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header class="top">
+      <img src="logo.svg" alt="" class="logo" width="40" height="40">
+      <div>
+        <h1>Smart Ventilation</h1>
+        <div class="muted small" id="top-status">Loading…</div>
+      </div>
+      <span class="chip warn" id="mode-chip" title="This version only shows advice. It never changes your fan or valves.">Dry-run</span>
+    </header>
+
+    <nav class="tabs" id="main-nav">
+      <button class="tab active" data-tab="home">Home</button>
+      <button class="tab" data-tab="activity">Activity</button>
+      <button class="tab" data-tab="settings">⚙ Settings</button>
+    </nav>
+    <nav class="subtabs" id="settings-nav" hidden>
+      <button class="subtab active" data-sub="zones">Zones</button>
+      <button class="subtab" data-sub="actuators">Actuators</button>
+      <button class="subtab" data-sub="general">General</button>
+      <button class="subtab" data-sub="diag">Diagnostics</button>
+    </nav>
+
+    <section id="tab-home"><div class="card muted">Loading…</div></section>
+    <section id="tab-activity" hidden></section>
+    <section id="tab-settings" hidden>
+      <div id="settings-body"></div>
+      <div class="card save-bar" id="save-bar">
+        <div id="save-msg" class="small"></div>
+        <button class="primary" id="save-btn">Save settings</button>
+      </div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+name: Bug report
+description: Something does not work as it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! The more of the fields below you fill in, the faster it can be found.
+        **Please attach the diagnostics file**: in the app, Settings › Diagnostics › *Download diagnostics*.
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown at the top of the app page
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.10.2"
+  - type: input
+    id: ventilation
+    attributes:
+      label: Ventilation unit and valves (brand, model, integration)
+      placeholder: "Duco Open AIR Mini + Open AIR Valves, ESPHome"
+    validations:
+      required: true
+  - type: input
+    id: sensors
+    attributes:
+      label: Humidity sensors (brand, model, integration)
+      placeholder: "Aqara temp/hum, Zigbee2MQTT"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did the app do instead? Times help (for example "showered at 07:10, no boost").
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log lines (optional)
+      description: From the Activity tab in the app or the app log in Home Assistant.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I attached the diagnostics file (Settings › Diagnostics › Download diagnostics), or explained why not
+          required: false

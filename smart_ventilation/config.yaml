@@ -1,0 +1,22 @@
+name: Smart Ventilation (dev)
+version: "0.1.0-dev"
+slug: smart_ventilation
+description: "TEST VERSION (dry-run): ventilates showers and bathrooms on the humidity curve."
+url: https://github.com/tlpeter/smart-ventilation
+arch:
+  - amd64
+  - aarch64
+init: false
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:fan
+panel_title: Smart Ventilation (dev)
+homeassistant_api: true
+options:
+  publish_sensors: false
+  log_level: info
+schema:
+  publish_sensors: bool
+  log_level: list(debug|info|warning|error)

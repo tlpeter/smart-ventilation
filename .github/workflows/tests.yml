@@ -1,0 +1,39 @@
+name: Tests
+
+# Runs every test on each push and pull request. A red result means: do not
+# release this version.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Syntax and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: smart_ventilation/app
+      - name: Check JavaScript syntax
+        shell: bash
+        run: find smart_ventilation/app tests -name '*.js' -not -path '*/node_modules/*' -print0 | xargs -0 -n1 node --check
+      - name: Check the version is the same everywhere
+        shell: bash
+        run: |
+          cfg=$(sed -n 's/^version: "\(.*\)"/\1/p' smart_ventilation/config.yaml)
+          pkg=$(node -p "require('./smart_ventilation/app/package.json').version")
+          lock=$(node -p "const l=require('./smart_ventilation/app/package-lock.json'); l.version + ' ' + l.packages[''].version")
+          echo "config.yaml=$cfg package.json=$pkg package-lock.json=$lock"
+          [ "${cfg%-dev}" = "$pkg" ] && [ "$lock" = "$pkg $pkg" ]
+      - name: Run the tests
+        run: node --test tests/*.test.js

@@ -1,0 +1,139 @@
+/* Look and feel: Home Assistant's default theme with Mushroom-style cards,
+   the same as the other planner apps. */
+:root {
+  --bg: #f3f1ec;
+  --card: #fffdf9;
+  --surface: #f0eee9;
+  --text: #263238;
+  --muted: #6f777b;
+  --border: #e5e1d9;
+  --accent: #1f8fb8;
+  --rgb-accent: 31, 143, 184;
+  --accent-text: #ffffff;
+  --good: #388e6c;
+  --rgb-good: 56, 142, 108;
+  --warning: #bd7c20;
+  --rgb-warning: 189, 124, 32;
+  --bad: #c65353;
+  --rgb-bad: 198, 83, 83;
+  --chip: rgba(66, 72, 76, 0.065);
+  --grid: #e7e4de;
+  --radius: 18px;
+  --shadow: 0 3px 14px rgba(50, 55, 60, 0.07);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17191c;
+    --card: #222529;
+    --surface: #2b2e33;
+    --text: #eef0f2;
+    --muted: #a7adb2;
+    --border: #34383e;
+    --accent: #5cc3e6;
+    --rgb-accent: 92, 195, 230;
+    --accent-text: #0e2630;
+    --good: #72c6a1;
+    --rgb-good: 114, 198, 161;
+    --warning: #e1b34d;
+    --rgb-warning: 225, 179, 77;
+    --bad: #ee8585;
+    --rgb-bad: 238, 133, 133;
+    --chip: rgba(255, 255, 255, 0.07);
+    --grid: #30343a;
+    --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 860px; margin: 0 auto; padding: 16px 16px 48px; }
+h1 { font-size: 22px; margin: 0; font-weight: 600; }
+h2 { font-size: 17px; margin: 0 0 10px; font-weight: 600; }
+h3 { font-size: 15px; margin: 14px 0 6px; font-weight: 600; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.top { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.top > div { flex: 1; min-width: 0; }
+.logo { border-radius: 10px; flex: none; }
+
+.tabs, .subtabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.tab, .subtab {
+  border: 0; background: var(--chip); color: var(--text); font: inherit;
+  padding: 7px 14px; border-radius: 999px; cursor: pointer;
+}
+.subtab { font-size: 13px; padding: 5px 12px; }
+.tab.active, .subtab.active { background: var(--accent); color: var(--accent-text); }
+
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 16px; margin-bottom: 12px;
+}
+.row { display: flex; align-items: center; gap: 12px; }
+.row.wrap { flex-wrap: wrap; }
+.spacer { flex: 1; }
+.icon {
+  width: 42px; height: 42px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: rgba(var(--rgb-accent), 0.14); color: var(--accent); font-size: 20px;
+}
+.icon.boost { background: rgba(var(--rgb-accent), 0.25); }
+.icon.afterrun { background: rgba(var(--rgb-good), 0.18); color: var(--good); }
+.icon.fault { background: rgba(var(--rgb-bad), 0.16); color: var(--bad); }
+.icon.off, .icon.idle { background: var(--chip); color: var(--muted); }
+.spin { display: inline-block; animation: spin 1.4s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px;
+  background: var(--chip); font-size: 13px; white-space: nowrap;
+}
+.chip.boost { background: rgba(var(--rgb-accent), 0.18); color: var(--accent); font-weight: 600; }
+.chip.afterrun { background: rgba(var(--rgb-good), 0.16); color: var(--good); font-weight: 600; }
+.chip.fault { background: rgba(var(--rgb-bad), 0.15); color: var(--bad); font-weight: 600; }
+.chip.warn { background: rgba(var(--rgb-warning), 0.16); color: var(--warning); font-weight: 600; }
+
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 12px 0 6px; }
+.figure { background: var(--surface); border-radius: 12px; padding: 8px 10px; }
+.figure b { display: block; font-size: 18px; font-weight: 600; }
+.figure span { font-size: 12px; color: var(--muted); }
+
+.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+
+.act { padding: 10px 0; border-top: 1px solid var(--border); }
+.act:first-of-type { border-top: 0; }
+code { font-size: 12px; background: var(--chip); padding: 1px 6px; border-radius: 6px; word-break: break-all; }
+
+.log-item { padding: 8px 0; border-top: 1px solid var(--border); }
+.log-item:first-child { border-top: 0; }
+
+.field { margin: 10px 0; }
+.field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.field .hint { font-size: 12px; color: var(--muted); margin-top: 3px; }
+input, select {
+  width: 100%; font: inherit; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
+}
+input[type=checkbox] { width: auto; margin: 0 6px 0 0; }
+.check { display: flex; align-items: center; margin: 6px 0; cursor: pointer; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 12px; }
+@media (max-width: 560px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+details summary { cursor: pointer; color: var(--accent); font-size: 14px; margin-top: 8px; }
+button { font: inherit; cursor: pointer; }
+.primary { background: var(--accent); color: var(--accent-text); border: 0; padding: 9px 18px; border-radius: 999px; font-weight: 600; }
+.secondary { background: var(--chip); color: var(--text); border: 0; padding: 7px 14px; border-radius: 999px; }
+.danger { background: transparent; color: var(--bad); border: 0; padding: 7px 4px; }
+.save-bar { display: flex; align-items: center; gap: 12px; position: sticky; bottom: 8px; }
+.save-bar > div { flex: 1; }
+.errors { color: var(--bad); margin: 0; padding-left: 18px; }
+.ok { color: var(--good); }
+.refs .chip { margin: 0 6px 6px 0; }
+.refs .chip button { border: 0; background: none; color: var(--muted); padding: 0 0 0 4px; }
+a { color: var(--accent); }
