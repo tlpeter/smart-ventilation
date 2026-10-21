@@ -223,9 +223,22 @@ let dirty = false;
 
 const ZONE_DEFAULTS = { riseThreshold: 8, riseWindowMin: 5, absoluteTrigger: 85, stopMargin: 3, minBoostMin: 5, maxBoostMin: 60, afterrunMin: 5, baselineWindowMin: 60, confirmWithTemperature: false, temperatureRise: 1 };
 
+let dash = null; // dashboard controls status (from /api/status)
+
 async function loadSettings() {
-  [draft, ents] = await Promise.all([api('/api/settings'), api('/api/entities').catch(() => ({}))]);
+  [draft, ents, dash] = await Promise.all([api('/api/settings'), api('/api/entities').catch(() => ({})), loadDash()]);
   dirty = false;
+}
+
+async function loadDash() {
+  try { return (await api('/api/status')).dashboard || null; } catch { return null; }
+}
+
+// The helper on the dashboard that sets this zone setting, if it exists.
+function lockedBy(zoneId, field) {
+  const list = dash && dash.locked && dash.locked[zoneId];
+  const hit = list && list.find((x) => x.field === field);
+  return hit ? hit.entity_id : null;
 }
 
 function meta(entityId) {
@@ -343,6 +356,12 @@ function num(label, key, value, min, max, step, hint) {
 }
 
 function zonesView() {
+  // A setting with a helper on the dashboard is set there, not here.
+  const zn = (z, label, key, min, max, step, hint) => {
+    const by = z.id ? lockedBy(z.id, key) : null;
+    if (!by) return num(label, key, z[key], min, max, step, hint);
+    return `<div class="field"><label>${label}</label><input type="number" value="${esc(z[key])}" disabled><div class="hint">Set on your dashboard: <code>${esc(by)}</code></div></div>`;
+  };
   const zones = draft.zones.map((z, i) => `<div class="card" data-zone="${i}">
     <div class="row"><h2 style="margin:0;flex:1">${esc(z.name)}</h2><label class="check"><input type="checkbox" data-k="enabled" ${z.enabled !== false ? 'checked' : ''}>On</label><button class="danger" data-act="del-zone">Remove</button></div>
     <div class="grid2">
@@ -356,13 +375,13 @@ function zonesView() {
     </div>
     <details><summary>Detection and timing</summary>
       <div class="grid3">
-        ${num('Rise trigger (points)', 'riseThreshold', z.riseThreshold, 1, 50, 0.5, 'Humidity rise that counts as a shower')}
+        ${zn(z, 'Rise trigger (points)', 'riseThreshold', 1, 50, 0.5, 'Humidity rise that counts as a shower')}
         ${num('Within (min)', 'riseWindowMin', z.riseWindowMin, 1, 30, 1)}
-        ${num('Absolute trigger (%)', 'absoluteTrigger', z.absoluteTrigger, 40, 100, 1, 'Safety net if the rise is missed')}
-        ${num('Stop margin (points)', 'stopMargin', z.stopMargin, 0, 20, 0.5, 'Stop at baseline + this')}
+        ${zn(z, 'Absolute trigger (%)', 'absoluteTrigger', 40, 100, 1, 'Safety net if the rise is missed')}
+        ${zn(z, 'Stop margin (points)', 'stopMargin', 0, 20, 0.5, 'Stop at baseline + this')}
         ${num('Minimum boost (min)', 'minBoostMin', z.minBoostMin, 0, 60, 1)}
-        ${num('Maximum boost (min)', 'maxBoostMin', z.maxBoostMin, 5, 240, 1)}
-        ${num('Afterrun (min)', 'afterrunMin', z.afterrunMin, 0, 60, 1)}
+        ${zn(z, 'Maximum boost (min)', 'maxBoostMin', 5, 240, 1)}
+        ${zn(z, 'Afterrun (min)', 'afterrunMin', 0, 60, 1)}
         ${num('Baseline window (min)', 'baselineWindowMin', z.baselineWindowMin, 15, 120, 5, 'Normal level = median over this time')}
         ${num('Temperature rise (°C)', 'temperatureRise', z.temperatureRise, 0.1, 10, 0.1)}
       </div>
@@ -432,9 +451,43 @@ function generalView() {
         <div class="field"><label>Until</label><input type="time" data-g="nightEnd" value="${esc(g.nightEnd)}"></div>
       </div>
     </div>
+    ${dashboardCard()}
     <div class="card"><h2>Sensors</h2>
       ${num('Sensor timeout (min)', 'sensorTimeoutMin', g.sensorTimeoutMin, 5, 720, 5, 'No reading for this long counts as a sensor problem: the zone goes back to rest.').replace('data-k=', 'data-g=')}
     </div>`;
+}
+
+// Dashboard controls: helpers in a YAML package that the app writes.
+function dashboardCard() {
+  const g = draft.general;
+  const d = dash || {};
+  const loc = d.location || {};
+  let body = '';
+  if (g.dashboardHelpers) {
+    if (!loc.ok && loc.problem === 'no-packages') {
+      body += `<p class="small"><b>One step first:</b> packages are not on in Home Assistant yet. Add these lines to <code>configuration.yaml</code> (for example with the File editor app), restart Home Assistant, then come back here:</p>
+        <pre class="code">${esc(d.snippet)}</pre>
+        <p class="hint">Is there already a <code>homeassistant:</code> line? Then add only the <code>packages:</code> line under it.</p>`;
+    } else if (!loc.ok) {
+      body += `<p class="small" style="color:var(--bad)">${esc(loc.detail || 'The Home Assistant config folder cannot be used.')}</p>`;
+    } else {
+      body += `<p class="small">The app writes <code>${esc(loc.dir)}/smart_ventilation.yaml</code> and nothing else.</p>`;
+      if (d.file && d.file.error) body += `<p class="small" style="color:var(--bad)">${esc(d.file.error)}</p>`;
+      if (!d.enabled) body += '<p class="small"><b>Press Save settings</b> to make the file.</p>';
+      else if (d.found < d.expected) {
+        body += `<p class="small"><b>${d.found} of ${d.expected} helpers are in Home Assistant.</b> Load the new ones once: <b>Developer tools → YAML</b> → reload <b>Input numbers</b>, <b>Input selects</b> and <b>Input buttons</b> (or restart Home Assistant).</p>`;
+      } else {
+        body += `<p class="small ok">✓ All ${d.expected} helpers are in Home Assistant. Put them on a dashboard; changes there are used right away.</p>`;
+      }
+      if (d.enabled && (d.entities || []).length) {
+        body += `<details><summary>Entities for your dashboard</summary>${d.entities.map((e) => `<h3>${esc(e.name)}</h3><div class="small"><code>${esc(e.mode)}</code> Auto / Off<br><code>${esc(e.boost)}</code> boost now<br>${e.numbers.map((n) => `<code>${esc(n.entity_id)}</code> ${esc(n.name)}`).join('<br>')}</div>`).join('')}</details>`;
+      }
+    }
+  }
+  return `<div class="card"><h2>Dashboard controls</h2>
+    <label class="check"><input type="checkbox" data-g="dashboardHelpers" ${g.dashboardHelpers ? 'checked' : ''}>Make helpers in Home Assistant, to set the app from a dashboard</label>
+    <p class="muted small">Per zone: a mode (Auto / Off), a "boost now" button, and the rise trigger, safety net, stop margin, maximum boost and afterrun. The app only reads them; a change on the dashboard is used right away and kept after a restart. Turning this off removes the file.</p>
+    ${body}</div>`;
 }
 
 function diagView() {
@@ -489,7 +542,11 @@ function bind() {
       renderSettings();
     };
   });
-  $$('[data-g]', el).forEach((inp) => inp.addEventListener('change', () => { draft.general[inp.dataset.g] = readInput(inp); markDirty(); }));
+  $$('[data-g]', el).forEach((inp) => inp.addEventListener('change', () => {
+    draft.general[inp.dataset.g] = readInput(inp);
+    markDirty();
+    if (inp.dataset.g === 'dashboardHelpers') renderSettings();
+  }));
   const addZone = $('[data-act="add-zone"]', el);
   if (addZone) addZone.onclick = () => {
     const names = ['Shower', 'Bathroom', 'Toilet', 'Laundry'];
@@ -544,6 +601,7 @@ $('#save-btn').addEventListener('click', async () => {
     draft = r.settings;
     dirty = false;
     suggestNotes = [];
+    dash = await loadDash();
     msg.innerHTML = '<span class="ok">Saved.</span>';
     renderSettings();
     showDirty();
@@ -570,6 +628,14 @@ async function render() {
 
 render();
 setInterval(() => { if (tab === 'home') renderHome(); }, 10000);
+// Settings › General: follow the helpers appearing in Home Assistant after a reload.
+setInterval(async () => {
+  if (tab !== 'settings' || sub !== 'general' || !draft || !draft.general.dashboardHelpers) return;
+  const before = JSON.stringify(dash);
+  dash = await loadDash();
+  const typing = document.activeElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName);
+  if (JSON.stringify(dash) !== before && !typing) renderSettings();
+}, 5000);
 // Leaving Settings with unsaved changes asks first (save, discard or stay),
 // also when leaving the app. The shared guard is in unsaved.js.
 unsavedGuard.init({ nav: '#main-nav .tab' });

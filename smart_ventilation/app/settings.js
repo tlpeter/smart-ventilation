@@ -21,6 +21,7 @@ const GENERAL_DEFAULTS = {
   nightStart: '23:00',
   nightEnd: '07:00',
   sensorTimeoutMin: 60,
+  dashboardHelpers: false,
 };
 
 function slug(text, used) {
@@ -107,6 +108,7 @@ function normalise(raw) {
     nightStart: time(g.nightStart, GENERAL_DEFAULTS.nightStart),
     nightEnd: time(g.nightEnd, GENERAL_DEFAULTS.nightEnd),
     sensorTimeoutMin: num(g.sensorTimeoutMin, GENERAL_DEFAULTS.sensorTimeoutMin, 5, 720),
+    dashboardHelpers: g.dashboardHelpers === true,
   };
   return { version: 1, zones, actuators, general };
 }

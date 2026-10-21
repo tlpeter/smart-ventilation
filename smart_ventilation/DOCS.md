@@ -82,7 +82,40 @@ All numbers are starting points: tune them with the chart on Home and the Activi
 
 - **Reference sensors** (optional): humidity sensors in other rooms. The app uses their median. A rise in the whole house (weather) does not count as a shower, and a boost also stops when the room is back near the rest of the house.
 - **Night**: from / until, and whether the actuators' night maximum is used.
-- **Sensor timeout** (default 60 min): no reading for this long counts as a sensor problem. The app uses the time of the last report (`last_reported`), so a sensor that reports the same value still counts as alive.
+- **Sensor timeout** (default 60 min): no reading for this long counts as a sensor problem. The app uses the time of the last report (`last_reported`), so a sensor that reports the same value still counts as alive.- **Dashboard controls** (off by default): see below.
+
+## Dashboard controls
+
+With **Settings › General › Dashboard controls** on, the app makes helpers in Home Assistant, so you can set it from a dashboard. Per zone (`<zone>` is the zone's id, for example `shower`):
+
+| Helper | What it does |
+| --- | --- |
+| `input_select.smart_ventilation_<zone>_mode` | **Auto** (normal) or **Off** (the zone asks for nothing, also during a shower) |
+| `input_button.smart_ventilation_<zone>_boost` | **Boost now**: a boost by hand for the maximum boost time, then back to Auto. Choosing Off stops it. |
+| `input_number.smart_ventilation_<zone>_rise_trigger` | Rise trigger (points) |
+| `input_number.smart_ventilation_<zone>_safety_net` | Absolute trigger, the safety net (%) |
+| `input_number.smart_ventilation_<zone>_stop_margin` | Stop margin (points) |
+| `input_number.smart_ventilation_<zone>_max_boost` | Maximum boost (min) |
+| `input_number.smart_ventilation_<zone>_afterrun` | Afterrun (min) |
+
+How it works:
+
+1. The app reads `configuration.yaml` to find your packages folder, and writes **one file of its own**: `<packages folder>/smart_ventilation.yaml`. It never changes `configuration.yaml` or any other file, and leaves a file with that name alone when it did not make it.
+2. Packages not on yet? The page shows the lines to add to `configuration.yaml`:
+
+   ```yaml
+   homeassistant:
+     packages: !include_dir_named packages
+   ```
+
+   Then restart Home Assistant once.
+3. After the file is written (and after a new zone), load the helpers once: **Developer tools → YAML** → reload **Input numbers**, **Input selects** and **Input buttons**, or restart Home Assistant. The card shows how many helpers Home Assistant has.
+4. The app only **reads** the helpers; it never sets them. A change on the dashboard is used right away, and the app writes it into the file as the helper's starting value (`initial`), so it is kept after Home Assistant restarts.
+5. A setting with a helper is set on the dashboard: in the app it is shown but cannot be changed there.
+
+Turning dashboard controls off removes the file; reload or restart Home Assistant to remove the helpers.
+
+The app needs the Home Assistant config folder for this (`homeassistant_config`, read and write); it uses it only as described above.
 
 ## Configuration tab (Home Assistant)
 

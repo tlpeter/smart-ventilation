@@ -15,6 +15,7 @@ const settings = require('./settings');
 const engine = require('./engine');
 const actuators = require('./actuators');
 const { readJson, writeJsonAtomic } = require('./jsonstore');
+const { createDashboard } = require('./dashboard');
 
 const PORT = Number(process.env.SV_PORT) || 8099; // SV_PORT: tests only
 const TICK_MS = Math.max(50, Number(process.env.SV_TICK_MS) || 30000);
@@ -63,6 +64,10 @@ function restoreRuntime() {
     // absolute trigger waits until the room is clearly drier. A restart (for
     // example an update) must not start a new boost because of it.
     if (old && old.absLatch === true) zoneStates[z.id].absLatch = true;
+    // Keep Off, and a boost by hand that is still running.
+    if (old && old.mode === 'off') zoneStates[z.id].mode = 'off';
+    else if (old && old.mode === 'boost' && fresh && old.state === 'boost') zoneStates[z.id].mode = 'boost';
+    else zoneStates[z.id].mode = 'auto';
   }
 }
 
@@ -124,6 +129,7 @@ function rebuildReference() {
 function onState(entityId, st) {
   if (st) entityStates.set(entityId, st);
   else entityStates.delete(entityId);
+  if (started) dashboard.onState(entityId, st);
   if (!trackedEntities().has(entityId)) return;
   const v = numericState(st);
   if (v !== null) {
@@ -226,6 +232,53 @@ function zoneInput(z, t) {
   };
 }
 
+const MODES = ['auto', 'off', 'boost'];
+
+// Dashboard controls: the app's own helpers in a YAML package (optional).
+const dashboard = createDashboard({
+  getSettings: () => settings.get(),
+  getMode: (zoneId) => (zoneStates[zoneId] && zoneStates[zoneId].mode) || 'auto',
+  onNumber: (zoneId, field, value, label) => setFromDashboard(zoneId, field, value, label),
+  onMode: (zoneId, mode) => setMode(zoneId, mode, 'Home Assistant'),
+  onBoost: (zoneId) => setMode(zoneId, 'boost', 'Home Assistant'),
+  log: (...a) => ha.log(...a),
+  warn: (...a) => ha.warn(...a),
+});
+
+// A setting changed on the dashboard (an input_number helper).
+function setFromDashboard(zoneId, field, value, label) {
+  const s = JSON.parse(JSON.stringify(settings.get()));
+  const z = s.zones.find((x) => x.id === zoneId);
+  if (!z || z[field] === value) return;
+  z[field] = value;
+  if (field === 'maxBoostMin' && z.minBoostMin > value) z.minBoostMin = value;
+  settings.save(s);
+  addLog({ type: 'settings', zone: zoneId, reason: `${z.name}: ${label} ${value} (from Home Assistant)` });
+  ha.log(`${z.name}: ${label} ${value} (from Home Assistant)`);
+  dashboard.sync(); // the new value becomes the helper's starting value
+  evaluate();
+}
+
+// Read the helpers once (at start, or when dashboard controls are turned on).
+function readDashboardHelpers() {
+  for (const [id, st] of entityStates) if (id.includes('smart_ventilation_')) dashboard.onState(id, st, true);
+}
+
+// Set a zone to Auto, Off or Boost (by hand). source: 'app' or 'Home Assistant'.
+function setMode(zoneId, mode, source) {
+  const z = settings.get().zones.find((x) => x.id === zoneId);
+  if (!z) throw Object.assign(new Error('Unknown zone'), { status: 404 });
+  if (!MODES.includes(mode)) throw Object.assign(new Error('Mode must be auto, off or boost'), { status: 400 });
+  if (!zoneStates[zoneId]) zoneStates[zoneId] = engine.newZoneState(now());
+  if (zoneStates[zoneId].mode === mode) return;
+  zoneStates[zoneId].mode = mode;
+  addLog({ type: 'mode', zone: zoneId, name: z.name, mode, reason: `${z.name}: mode ${mode} (from ${source})` });
+  ha.log(`${z.name}: mode ${mode} (from ${source})`);
+  saveRuntime();
+  if (mode !== 'boost') dashboard.sync(); // Off / Auto becomes the helper's starting value
+  evaluate();
+}
+
 function evaluate() {
   if (!started) return;
   const s = settings.get();
@@ -310,7 +363,7 @@ function status() {
     // trigger: their reason tells.
     const isShower = (e) => e.trigger ? e.trigger === 'shower' : /^Shower detected/.test(e.reason || '');
     const showersToday = logEntries.filter((e) => e.type === 'zone' && e.zone === z.id && e.to === 'boost' && e.from === 'idle' && isShower(e) && localDay(e.t) === today).length;
-    return { id: z.id, name: z.name, enabled: z.enabled, state: z.enabled ? st.state : 'off', since: st.since, reason: z.enabled ? st.reason : 'Zone is switched off', boostStart: st.boostStart, figures: fig, showersToday, actuators: z.actuators };
+    return { id: z.id, name: z.name, enabled: z.enabled, mode: st.mode || 'auto', state: z.enabled ? st.state : 'off', since: st.since, reason: z.enabled ? st.reason : 'Zone is switched off', boostStart: st.boostStart, figures: fig, showersToday, actuators: z.actuators };
   });
   const acts = s.actuators.map((a) => {
     const d = advice[a.id] || {};
@@ -324,6 +377,7 @@ function status() {
     error: ha.state.lastError,
     night: isNight(t),
     configured: s.zones.length > 0 && s.actuators.length > 0,
+    dashboard: dashboard.status((id) => entityStates.get(id)),
     zones,
     actuators: acts,
     now: t,
@@ -450,6 +504,7 @@ function diagnostics() {
       return st ? { entity_id: id, state: st.state, attributes: st.attributes, last_updated: st.last_updated, last_reported: st.last_reported } : { entity_id: id, missing: true };
     }),
     histories: Object.fromEntries([...trackedEntities()].map((id) => [id, history(id).slice(-60)])),
+    dashboard: dashboard.status((id) => entityStates.get(id)),
     log: logEntries.slice(-200),
     appLog: ha.recentLog(),
   };
@@ -493,6 +548,11 @@ async function handleApi(req, res, url) {
   if (req.method === 'GET' && p === '/api/settings') return sendJson(res, 200, settings.get());
   if (req.method === 'GET' && p === '/api/entities') return sendJson(res, 200, entities());
   if (req.method === 'GET' && p === '/api/suggest') return sendJson(res, 200, suggestSetup());
+  if (req.method === 'POST' && p === '/api/mode') {
+    const body = await readBody(req);
+    setMode(String(body.zone || ''), String(body.mode || ''), 'app');
+    return sendJson(res, 200, { ok: true, status: status() });
+  }
   if (req.method === 'GET' && p === '/api/log') return sendJson(res, 200, logEntries.slice(-200).reverse());
   if (req.method === 'GET' && p === '/api/chart') {
     const c = zoneChart(url.searchParams.get('zone') || '');
@@ -529,6 +589,8 @@ async function handleApi(req, res, url) {
       rebuildReference();
     }
     saveRuntime();
+    dashboard.sync();
+    readDashboardHelpers();
     evaluate();
     return sendJson(res, 200, { ok: true, settings: settings.get() });
   }
@@ -558,6 +620,8 @@ ha.onConnect(async () => {
   await loadHistory();
   if (!started) restoreRuntime();
   started = true;
+  readDashboardHelpers();
+  dashboard.sync();
   evaluate();
 });
 ha.onStateChanged(onState);

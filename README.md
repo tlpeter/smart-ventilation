@@ -15,6 +15,7 @@ A Home Assistant app (add-on) that ventilates showers and bathrooms on the **hum
 - **Valves of the other rooms**: while one zone boosts, the valve of another zone can go to a low level (for example 0–25%), so the air comes from the wet room.
 - **Reference sensors** (optional): humidity sensors in other rooms. When the whole house gets humid (weather), that is not a shower.
 - **Night maximum** (optional): a quieter maximum level during the night.
+- **Dashboard controls** (optional): per zone Auto / Off, a "boost now" button and the main settings as helpers in Home Assistant, in a YAML package the app writes itself. Put them on any dashboard.
 - **Any brand**: the fan, valves and sensors are chosen in the app. Supported actuator types: fan (percentage or preset), number, select and switch.
 
 ## Installation
@@ -40,7 +41,8 @@ Zones: **Shower** (its humidity sensor, the fan and the shower valve) and **Bath
 
 - This version only reads Home Assistant. The code has no way to call an action.
 - The one write is the app's own sensors (`sensor.smart_ventilation_*`), and only when **Publish sensors** is on.
-- It never changes automations, scripts, blueprints or helpers.
+- It never changes automations, scripts, blueprints or your helpers.
+- With **Dashboard controls** on, it writes one file of its own (`<packages>/smart_ventilation.yaml`) and only reads the helpers in it.
 
 ## License and support
 

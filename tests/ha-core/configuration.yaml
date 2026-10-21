@@ -7,6 +7,8 @@ homeassistant:
   time_zone: Europe/Amsterdam
   country: NL
   currency: EUR
+  # The app's dashboard controls are written here (packages/smart_ventilation.yaml).
+  packages: !include_dir_named packages
 
 default_config:
 

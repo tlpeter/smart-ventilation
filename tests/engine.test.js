@@ -163,3 +163,40 @@ test('a boost knows what started it: a shower (fast rise) or the safety net (hum
   assert.equal(st2.trigger, 'humid');
   assert.equal(r2.change.trigger, 'humid');
 });
+
+test('mode Off: the zone asks for nothing, also during a shower; Auto brings it back', () => {
+  const h = steady(55, [[3, 70]]);
+  const st = engine.newZoneState(T0);
+  st.mode = 'off';
+  engine.evaluateZone({}, st, input(h, 3));
+  assert.equal(st.state, 'off');
+  st.mode = 'auto';
+  engine.evaluateZone({}, st, input(h, 4));
+  assert.equal(st.state, 'boost', 'the rise is still within the window: a shower');
+});
+
+test('mode Boost: a boost by hand for the maximum time, then back to Auto', () => {
+  const h = steady(55);
+  const st = engine.newZoneState(T0);
+  st.mode = 'boost';
+  const { change } = engine.evaluateZone({ maxBoostMin: 30 }, st, input(h, 1));
+  assert.equal(st.state, 'boost');
+  assert.equal(st.trigger, 'manual');
+  assert.equal(change.trigger, 'manual');
+  engine.evaluateZone({ maxBoostMin: 30 }, st, input(h, 20));
+  assert.equal(st.state, 'boost', 'no stop at baseline during a boost by hand');
+  engine.evaluateZone({ maxBoostMin: 30 }, st, input(h, 31));
+  assert.equal(st.state, 'afterrun');
+  assert.equal(st.mode, 'auto');
+});
+
+test('mode Boost works without a humidity reading; back to Auto stops it', () => {
+  const st = engine.newZoneState(T0);
+  st.mode = 'boost';
+  engine.evaluateZone({}, st, { now: T0, humidity: { history: [], ok: false, problem: 'sensor gone' } });
+  assert.equal(st.state, 'boost');
+  st.mode = 'auto';
+  engine.evaluateZone({}, st, input(steady(55), 2));
+  assert.equal(st.state, 'afterrun');
+  assert.match(st.reason, /stopped/);
+});

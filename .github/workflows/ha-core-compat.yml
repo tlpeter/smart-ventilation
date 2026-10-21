@@ -38,7 +38,7 @@ jobs:
       - name: Start Home Assistant Core
         shell: bash
         run: |
-          mkdir -p "$RUNNER_TEMP/ha-core-config"
+          mkdir -p "$RUNNER_TEMP/ha-core-config/packages"
           cp tests/ha-core/configuration.yaml "$RUNNER_TEMP/ha-core-config/configuration.yaml"
           docker run --detach --name sv-ha-core \
             --publish 8123:8123 \
@@ -48,6 +48,8 @@ jobs:
         run: node --test tests/ha-core-compat.test.js
         env:
           HA_CORE_TEST: '1'
+          # The app writes its dashboard helpers into the Core's config folder.
+          SV_HA_CONFIG_DIR: ${{ runner.temp }}/ha-core-config
       - name: Home Assistant log on failure
         if: failure()
         run: docker logs sv-ha-core

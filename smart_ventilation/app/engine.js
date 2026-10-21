@@ -104,7 +104,7 @@ function round1(x) {
 // ---------------------------------------------------------------------------
 
 function newZoneState(now) {
-  return { state: 'idle', since: now, baseline: null, boostStart: null, reason: 'Waiting for readings', absLatch: false, trigger: null };
+  return { state: 'idle', since: now, baseline: null, boostStart: null, reason: 'Waiting for readings', absLatch: false, trigger: null, mode: 'auto' };
 }
 
 // cfg: zone settings. st: the zone's state (changed in place and returned).
@@ -115,6 +115,10 @@ function newZoneState(now) {
 //   temperature: { history } or null,
 //   reference: { history } or null — median of the reference sensors,
 // }
+// st.mode is chosen by hand (in the app or from Home Assistant):
+//   'auto'  the normal logic below;
+//   'off'   the zone asks for nothing (state 'off');
+//   'boost' a boost by hand for the maximum boost time, then back to 'auto'.
 // Returns { st, change } where change is null or { from, to, reason }.
 function evaluateZone(cfgIn, st, input) {
   const cfg = { ...ZONE_DEFAULTS, ...cfgIn };
@@ -130,6 +134,31 @@ function evaluateZone(cfgIn, st, input) {
     st.state = to;
     st.reason = reason;
   };
+
+  // 0. Chosen by hand: off, or a boost by hand.
+  const mode = st.mode || 'auto';
+  if (mode === 'off') {
+    go('off', 'Switched off by hand');
+    st.boostStart = null;
+    st.baseline = null;
+    st.trigger = null;
+    return result(st, before);
+  }
+  if (st.state === 'off') go('idle', 'Switched on again');
+  if (mode === 'boost') {
+    if (st.state !== 'boost' || st.trigger !== 'manual') {
+      if (st.baseline === null && h !== null) st.baseline = round1(baselineAt(hum.history, now, cfg.baselineWindowMin * MIN, windowMs));
+      st.boostStart = now;
+      st.trigger = 'manual';
+      go('boost', `Boost by hand for ${cfg.maxBoostMin} min`);
+      return result(st, before);
+    }
+    if (now - st.boostStart >= cfg.maxBoostMin * MIN) {
+      st.mode = 'auto';
+      go('afterrun', `Boost by hand done after ${cfg.maxBoostMin} min`);
+    }
+    return result(st, before);
+  }
 
   // 1. A sensor problem always wins: back to rest, and say why.
   if (!hum.ok || h === null) {
@@ -163,7 +192,10 @@ function evaluateZone(cfgIn, st, input) {
   // 3. Boosting: stop when the room is back to normal, or at the maximum time.
   if (st.state === 'boost') {
     const ran = now - (st.boostStart || now);
-    if (ran >= cfg.maxBoostMin * MIN) {
+    if (st.trigger === 'manual') {
+      // Set back to Auto during a boost by hand.
+      go('afterrun', 'Boost by hand stopped');
+    } else if (ran >= cfg.maxBoostMin * MIN) {
       st.absLatch = h >= cfg.absoluteTrigger;
       go('afterrun', `Maximum boost time of ${cfg.maxBoostMin} min reached`);
     } else if (ran >= cfg.minBoostMin * MIN) {

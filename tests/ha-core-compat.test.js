@@ -185,6 +185,25 @@ async function run() {
   const chart = await appApi('/api/chart?zone=shower');
   assert.ok(chart.humidity.length >= 3, `chart has ${chart.humidity.length} points`);
 
+  // Dashboard controls: the app writes its YAML package, and this real Home
+  // Assistant loads it (so the YAML is valid). The test reloads the helpers,
+  // as the owner does once by hand.
+  const current = await appApi('/api/settings');
+  current.general.dashboardHelpers = true;
+  await post('/api/settings', current);
+  for (const domain of ['input_number', 'input_select', 'input_button']) await haService(domain, 'reload', {});
+  const safety = await until(() => haGet('states/input_number.smart_ventilation_shower_safety_net'), 'the helpers loaded in Home Assistant', 40, 500);
+  assert.equal(Number(safety.state), Number(current.zones[0].absoluteTrigger));
+  await until(async () => { const d = (await appApi('/api/status')).dashboard; return d.found === d.expected && d.expected === 14; }, 'the app sees all 14 helpers');
+  // A change on the dashboard is used by the app.
+  await haService('input_number', 'set_value', { entity_id: 'input_number.smart_ventilation_shower_safety_net', value: 88 });
+  await until(async () => (await appApi('/api/settings')).zones[0].absoluteTrigger === 88, 'safety net 88 from the dashboard');
+  // Boost now, then Off.
+  await haService('input_button', 'press', { entity_id: 'input_button.smart_ventilation_shower_boost' });
+  await until(async () => { const z = (await appApi('/api/status')).zones[0]; return z.state === 'boost' && /Boost by hand/.test(z.reason); }, 'boost by hand from the button');
+  await haService('input_select', 'select_option', { entity_id: 'input_select.smart_ventilation_shower_mode', option: 'Off' });
+  await until(async () => (await appApi('/api/status')).zones[0].state === 'off', 'mode Off from the dashboard');
+
   // SAFETY: dry-run. Nothing was sent to the fan or the valves.
   const fanAfter = await haGet(`states/${fanState.entity_id}`);
   assert.equal(fanAfter.attributes.percentage, before.fan, 'the fan was changed');

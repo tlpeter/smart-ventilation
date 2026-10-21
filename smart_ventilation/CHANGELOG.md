@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0-dev
+
+- New: **Dashboard controls** (Settings › General, off by default). The app makes helpers in Home Assistant, per zone: a mode (Auto / Off), a "boost now" button, and the rise trigger, safety net, stop margin, maximum boost and afterrun. Put them on any dashboard; a change there is used right away.
+- The helpers are in a YAML package that the app writes itself (`<packages folder>/smart_ventilation.yaml`). It never changes `configuration.yaml`: when packages are not on yet, the page shows the lines to add. After the file is written, reload the helpers once (Developer tools → YAML). The page shows how many helpers Home Assistant has.
+- The app only reads the helpers. A change on the dashboard becomes the helper's starting value in the file, so it is kept after Home Assistant restarts. A setting that has a helper is set on the dashboard and cannot be changed in the app.
+- New: per zone a mode. **Off**: the zone asks for nothing. **Boost now**: a boost by hand for the maximum boost time, then back to Auto (Off stops it).
+- The app now asks for access to the Home Assistant config folder (to write that one file).
+- Tests: the YAML package, dashboard controls with a temporary config folder, the modes, and the real Home Assistant Core loads the package.
+
 ## 0.1.5-dev
 
 - Fix: "Showers today" also counted a boost from the safety net (humidity above the absolute trigger). Now only a boost started by a fast rise counts as a shower. The Activity log notes what started each boost.
