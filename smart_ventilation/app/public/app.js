@@ -127,8 +127,9 @@ function zoneCard(z) {
       <div class="figure"><span>Showers today</span><b>${z.showersToday}</b></div>
     </div>
     <div class="muted small">${since}</div>
-    <svg class="chart" id="chart-${esc(z.id)}" viewBox="0 0 600 170" role="img" aria-label="Humidity of the last 3 hours"></svg>
-    <div class="legend"><span><i style="background:var(--accent)"></i>humidity</span><span><i style="background:var(--muted)"></i>reference</span><span><i style="background:var(--warning)"></i>baseline</span><span><i style="background:rgba(var(--rgb-accent),.3);height:8px"></i>boost</span><span><i style="background:rgba(var(--rgb-good),.3);height:8px"></i>afterrun</span></div>
+    <div class="chart-head"><span class="small muted">${RANGE_TITLE[chartHours]}</span>${rangeButtons()}</div>
+    <svg class="chart" id="chart-${esc(z.id)}" viewBox="0 0 600 170" role="img" aria-label="Humidity, ${RANGE_TITLE[chartHours].toLowerCase()}"></svg>
+    <div class="legend"><span><i style="background:var(--accent)"></i>humidity</span><span><i style="background:var(--muted)"></i>reference</span>${chartHours === 3 ? '<span><i style="background:var(--warning)"></i>baseline</span>' : ''}<span><i style="background:rgba(var(--rgb-accent),.3);height:8px"></i>boost</span><span><i style="background:rgba(var(--rgb-good),.3);height:8px"></i>afterrun</span></div>
   </div>`;
 }
 
@@ -145,11 +146,38 @@ function actRow(a) {
   </div>`;
 }
 
+// How far back the chart looks: one choice for all zones, kept in this browser.
+const RANGES = [[3, '3 h'], [24, '24 h'], [72, '3 days'], [168, '7 days']];
+const RANGE_TITLE = { 3: 'Last 3 hours', 24: 'Last 24 hours', 72: 'Last 3 days', 168: 'Last 7 days' };
+let chartHours = 3;
+try {
+  const saved = Number(localStorage.getItem('sv-chart-hours'));
+  if (RANGE_TITLE[saved]) chartHours = saved;
+} catch { /* private window */ }
+
+function rangeButtons() {
+  return `<div class="range" role="group" aria-label="How far back">${RANGES.map(([h, label]) =>
+    `<button type="button" data-hours="${h}" aria-pressed="${h === chartHours}">${label}</button>`).join('')}</div>`;
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.range button[data-hours]');
+  if (!b || Number(b.dataset.hours) === chartHours) return;
+  chartHours = Number(b.dataset.hours);
+  try { localStorage.setItem('sv-chart-hours', String(chartHours)); } catch { /* private window */ }
+  renderHome();
+});
+
+const dayLabel = (t) => new Date(t).toLocaleDateString([], { weekday: 'short', day: 'numeric' });
+
 async function drawChart(zoneId) {
   const svg = document.getElementById(`chart-${zoneId}`);
   if (!svg) return;
   let c;
-  try { c = await api(`/api/chart?zone=${encodeURIComponent(zoneId)}`); } catch { return; }
+  try { c = await api(`/api/chart?zone=${encodeURIComponent(zoneId)}&hours=${chartHours}`); } catch (err) {
+    svg.innerHTML = `<text x="300" y="90" text-anchor="middle" fill="currentColor" opacity=".6" font-size="13">${esc(err.message)}</text>`;
+    return;
+  }
   // Labels stay about 11 px on screen, also on a narrow phone.
   const fs = Math.min(24, Math.max(11, 11 * 600 / (svg.clientWidth || 600)));
   const W = 600, H = 170 + fs, L = 12 + fs * 2.6, R = 8, T = 8, B = 10 + fs * 1.2;
@@ -179,9 +207,27 @@ async function drawChart(zoneId) {
     const v = lo + stepSize * i;
     out += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" style="stroke:var(--grid)"/><text x="${L - 6}" y="${Y(v) + fs / 3}" text-anchor="end" font-size="${fs.toFixed(1)}" style="fill:var(--muted)">${v}%</text>`;
   }
-  for (let h = 0; h <= 3; h++) {
-    const t = c.to - (3 - h) * 3600000;
-    out += `<text x="${X(t)}" y="${H - 6}" text-anchor="${h === 0 ? 'start' : h === 3 ? 'end' : 'middle'}" font-size="${fs.toFixed(1)}" style="fill:var(--muted)">${h === 3 ? 'now' : clock(t)}</text>`;
+  const hours = Math.round((c.to - c.from) / 3600000);
+  if (hours <= 3) {
+    for (let h = 0; h <= 3; h++) {
+      const t = c.to - (3 - h) * 3600000;
+      out += `<text x="${X(t)}" y="${H - 6}" text-anchor="${h === 0 ? 'start' : h === 3 ? 'end' : 'middle'}" font-size="${fs.toFixed(1)}" style="fill:var(--muted)">${h === 3 ? 'now' : clock(t)}</text>`;
+    }
+  } else {
+    // 24 hours: a label every 6 hours. More days: one per day at midnight,
+    // with a faint line (3 days on a wide screen: also at noon).
+    const every = hours <= 24 ? 6 : (hours <= 72 && svg.clientWidth >= 500 ? 12 : 24);
+    const first = new Date(c.from);
+    first.setMinutes(0, 0, 0);
+    for (let t = first.getTime() + 3600000; t < c.to; t += 3600000) {
+      const h = new Date(t).getHours();
+      if (h % every) continue;
+      const x = X(t);
+      if (x < L + fs * 1.5 || x > W - R - fs * 1.5) continue;
+      const day = hours > 24 && h === 0;
+      if (day) out += `<line x1="${x}" x2="${x}" y1="${T}" y2="${H - B}" style="stroke:var(--grid)"/>`;
+      out += `<text x="${x}" y="${H - 6}" text-anchor="middle" font-size="${fs.toFixed(1)}" style="fill:var(--muted)">${day ? esc(dayLabel(t)) : clock(t)}</text>`;
+    }
   }
   if (c.baseline !== null) out += `<line x1="${L}" x2="${W - R}" y1="${Y(c.baseline)}" y2="${Y(c.baseline)}" style="stroke:var(--warning)" stroke-dasharray="5 4"/>`;
   if (c.reference.length) out += `<path d="${step(c.reference)}" fill="none" style="stroke:var(--muted)" stroke-width="1.5"/>`;

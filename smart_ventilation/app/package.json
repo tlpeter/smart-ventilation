@@ -1,6 +1,6 @@
 {
   "name": "smart-ventilation",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Ventilates showers and bathrooms on the humidity curve instead of fixed thresholds and timers.",
   "main": "server.js",
   "private": true,

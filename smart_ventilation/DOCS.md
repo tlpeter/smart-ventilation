@@ -124,7 +124,7 @@ The app needs the Home Assistant config folder for this (`homeassistant_config`,
 
 ## Home and Activity
 
-- **Home** shows per zone: the state and why, humidity, baseline, rise in the window, reference, showers today, and a chart of the last 3 hours with the boost and afterrun periods. Below: per actuator the current value, the advice, and the action the app would send.
+- **Home** shows per zone: the state and why, humidity, baseline, rise in the window, reference, showers today, and a chart of the humidity with the boost and afterrun periods. Above the chart you choose how far back: **3 h** (default), **24 h**, **3 days** or **7 days**; this browser remembers it. 3 hours uses the app's own readings and shows the baseline. Longer comes from Home Assistant's history (kept 10 days by default, `recorder:` → `purge_keep_days`); the bands come from the Activity log (the last 500 lines). Below: per actuator the current value, the advice, and the action the app would send.
 - **Activity** lists every zone change and every change in advice, newest first.
 
 ## Diagnostics

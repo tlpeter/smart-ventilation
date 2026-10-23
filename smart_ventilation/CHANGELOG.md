@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1-dev
+
+- The humidity chart on Home can look further back: choose **3 h**, **24 h**, **3 days** or **7 days** above the chart (the same as in Smart Heating Planner). The choice counts for all zones, and this browser remembers it.
+- 3 hours stays the default and works as before. Longer comes from Home Assistant's own history (only reading), so it is there right away. With days, the time line shows the days, and the baseline is not drawn (it moves over time).
+- A long history is thinned, but the highest and lowest value of every short stretch are kept, so a shower peak stays visible.
+- Tests: the new ranges, the thinning, and that only the history is read.
+
 ## 0.2.0-dev
 
 - New: **Dashboard controls** (Settings › General, off by default). The app makes helpers in Home Assistant, per zone: a mode (Auto / Off), a "boost now" button, and the rise trigger, safety net, stop margin, maximum boost and afterrun. Put them on any dashboard; a change there is used right away.

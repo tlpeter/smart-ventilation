@@ -13,6 +13,7 @@ const ha = require('./ha');
 const { options, DATA_DIR } = require('./options');
 const settings = require('./settings');
 const engine = require('./engine');
+const chart = require('./chart');
 const actuators = require('./actuators');
 const { readJson, writeJsonAtomic } = require('./jsonstore');
 const { createDashboard } = require('./dashboard');
@@ -458,34 +459,47 @@ function suggestSetup() {
   return { settings: settings.normalise({ actuators: actuatorsList, zones: zonesList, general: { ...settings.get().general, references } }), notes };
 }
 
-function zoneChart(zoneId) {
+// The chart of one zone. 3 hours: the app's own readings. Longer (24 hours,
+// 3 or 7 days): Home Assistant's history, kept for a minute.
+const chartCache = new Map(); // key -> { at, data }
+const CHART_CACHE_MS = 60 * 1000;
+
+async function zoneChart(zoneId, hoursRaw) {
   const s = settings.get();
   const z = s.zones.find((x) => x.id === zoneId);
   if (!z) return null;
+  const hours = chart.hoursOf(hoursRaw);
   const t = now();
-  const from = t - 3 * 60 * engine.MIN;
-  const pick = (h) => h.filter((x) => x.t >= from).map((x) => [x.t, x.v]);
-  const startVal = (h) => engine.valueAt(h, from);
-  const hum = z.humidity ? history(z.humidity) : [];
-  const spans = [];
-  let open = null;
+  const from = t - hours * 3600 * 1000;
+  const refs = s.general.references;
   const entries = logEntries.filter((e) => e.type === 'zone' && e.zone === z.id);
-  // State at the start of the window.
-  for (const e of entries) {
-    if (e.t <= from) open = e.to === 'boost' || e.to === 'afterrun' ? { state: e.to, from } : null;
+  const base = { from, to: t, hours, spans: chart.spans(entries, from, t) };
+  if (hours === chart.DEFAULT_HOURS) {
+    return {
+      ...base,
+      humidity: z.humidity ? chart.line(history(z.humidity), from, t) : [],
+      reference: refs.length ? chart.line(referenceHistory, from, t) : [],
+      baseline: zoneStates[z.id] ? zoneStates[z.id].baseline : null,
+    };
   }
-  for (const e of entries.filter((x) => x.t > from)) {
-    if (open) { open.to = e.t; spans.push(open); open = null; }
-    if (e.to === 'boost' || e.to === 'afterrun') open = { state: e.to, from: e.t };
+  const ids = [z.humidity, ...refs].filter(Boolean);
+  const key = JSON.stringify([z.id, hours, ids]);
+  const hit = chartCache.get(key);
+  let lines = hit && t - hit.at < CHART_CACHE_MS ? hit.data : null;
+  if (!lines) {
+    const result = ids.length ? await ha.getHistory(ids, new Date(from).toISOString()) : {};
+    const parsed = Object.fromEntries(ids.map((id) => [id, chart.parseRows(result && result[id])]));
+    lines = {
+      humidity: z.humidity ? parsed[z.humidity] : [],
+      reference: refs.length ? chart.referenceLine(refs.map((r) => parsed[r])) : [],
+    };
+    chartCache.set(key, { at: t, data: lines });
   }
-  if (open) { open.to = t; spans.push(open); }
   return {
-    from,
-    to: t,
-    humidity: [[from, startVal(hum)], ...pick(hum)].filter((p) => p[1] !== null),
-    reference: s.general.references.length ? [[from, startVal(referenceHistory)], ...pick(referenceHistory)].filter((p) => p[1] !== null) : [],
-    baseline: zoneStates[z.id] ? zoneStates[z.id].baseline : null,
-    spans,
+    ...base,
+    humidity: chart.line(lines.humidity, from, t),
+    reference: chart.line(lines.reference, from, t),
+    baseline: null, // the baseline moves; it is only drawn for the last 3 hours
   };
 }
 
@@ -555,7 +569,12 @@ async function handleApi(req, res, url) {
   }
   if (req.method === 'GET' && p === '/api/log') return sendJson(res, 200, logEntries.slice(-200).reverse());
   if (req.method === 'GET' && p === '/api/chart') {
-    const c = zoneChart(url.searchParams.get('zone') || '');
+    let c;
+    try {
+      c = await zoneChart(url.searchParams.get('zone') || '', url.searchParams.get('hours'));
+    } catch (err) {
+      return sendJson(res, 502, { error: `Could not read the history from Home Assistant: ${err.message}` });
+    }
     return c ? sendJson(res, 200, c) : sendJson(res, 404, { error: 'Unknown zone' });
   }
   if (req.method === 'GET' && p === '/api/diagnostics') {

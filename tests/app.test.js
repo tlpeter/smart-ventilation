@@ -32,7 +32,7 @@ const STATES = [
 
 const lu = (agoMin) => (Date.now() - agoMin * 60000) / 1000;
 const HISTORY = {
-  'sensor.shower_humidity': [{ s: '55', lu: lu(90) }, { s: '55.5', lu: lu(40) }, { s: '55', lu: lu(10) }],
+  'sensor.shower_humidity': [{ s: '58', lu: lu(30 * 60) }, { s: '80', lu: lu(29 * 60) }, { s: '56', lu: lu(28 * 60) }, { s: '55', lu: lu(90) }, { s: '55.5', lu: lu(40) }, { s: '55', lu: lu(10) }],
   'sensor.bath_humidity': [{ s: '54', lu: lu(90) }],
   'sensor.hall_humidity': [{ s: '52', lu: lu(90) }],
 };
@@ -165,6 +165,24 @@ test('the app against a fake Home Assistant', async (t) => {
     const chart = await get('/api/chart?zone=shower');
     assert.ok(chart.humidity.length >= 3);
     assert.ok(chart.spans.some((s) => s.state === 'boost'));
+    assert.equal(chart.hours, 3);
+    assert.ok(!chart.humidity.some((p) => p[1] === 80), 'the shower of yesterday is not in the last 3 hours');
+
+    // Further back: from Home Assistant's history (only reading).
+    const before = ha.received.filter((m) => m.type === 'history/history_during_period').length;
+    const day = await get('/api/chart?zone=shower&hours=72');
+    assert.equal(day.hours, 72);
+    assert.ok(Math.abs(day.to - day.from - 72 * 3600000) < 5000);
+    assert.ok(day.humidity.some((p) => p[1] === 80), 'the shower of yesterday is in the last 3 days');
+    assert.ok(day.reference.length >= 1, 'the reference line is there');
+    assert.equal(day.baseline, null, 'no baseline over days');
+    assert.ok(day.spans.some((s) => s.state === 'boost'), 'boost band from the log');
+    const asked = ha.received.filter((m) => m.type === 'history/history_during_period');
+    assert.equal(asked.length, before + 1);
+    assert.ok(Date.now() - Date.parse(asked.at(-1).start_time) > 71 * 3600000, 'asked for 3 days');
+    await get('/api/chart?zone=shower&hours=72');
+    assert.equal(ha.received.filter((m) => m.type === 'history/history_during_period').length, before + 1, 'kept for a minute');
+    assert.equal((await get('/api/chart?zone=shower&hours=999')).hours, 3, 'anything else: 3 hours');
 
     ha.setState('sensor.shower_humidity', 57);
     await until(async () => (await get('/api/status')).zones[0].state === 'idle', 'shower zone back to idle');

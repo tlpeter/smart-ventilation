@@ -11,6 +11,7 @@ It is a sibling of [Smart Charging Planner](https://github.com/tlpeter/smart-cha
 
 - The app is in `smart_ventilation/app`: Node, `server.js`, port 8099 (ingress), with its data in `/data/*.json`.
 - The control logic is in `engine.js` (one zone, with the mode Auto / Off / Boost by hand) and `actuators.js` (fan and valves, shared actuators). Both are pure functions with unit tests.
+- The chart on Home: `chart.js` (pure: ranges 3 h / 24 h / 3 days / 7 days, thinning with the lowest and highest value per bucket, reference median, bands). `/api/chart?zone=&hours=`: 3 hours from the app's own readings, longer from `history/history_during_period`, kept for a minute.
 - Dashboard controls: `helpers.js` (the YAML text, pure) and `dashboard.js` (the file and reading the helpers).
 - The documentation is in `README.md` (overview) and `smart_ventilation/DOCS.md` (every setting).
 - The changelog is in `smart_ventilation/CHANGELOG.md`.
@@ -54,6 +55,7 @@ It is a sibling of [Smart Charging Planner](https://github.com/tlpeter/smart-cha
 - `tests/settings.test.js`: cleaning up and checking settings.
 - `tests/helpers.test.js`: the YAML package text and finding the packages folder in `configuration.yaml`.
 - `tests/dashboard.test.js`: dashboard controls with a temporary config folder: the file, reading the helpers, changes from the dashboard, Off and Boost now, nothing sent to Home Assistant.
+- `tests/chart.test.js`: the chart ranges, thinning (a shower peak stays), reference median and bands.
 - `tests/restart.test.js`: a restart keeps the safety-net lock; "Showers today" counts only showers.
 - `tests/app.test.js`: the whole app against a fake Home Assistant (`tests/fake-ha.js`): set-up through the API, a simulated shower, and a check that nothing is ever sent to a device.
 - `tests/ha-core-compat.test.js` (workflow `.github/workflows/ha-core-compat.yml`): the real app against a real Home Assistant Core in Docker, pinned to `HA_CORE_VERSION`, with `tests/ha-core/configuration.yaml` (demo fans and numbers, humidity sensors that follow `input_number` helpers, packages on). It also checks that Home Assistant loads the app's YAML package. It runs only with `HA_CORE_TEST=1` (the workflow sets it); locally it is skipped.
