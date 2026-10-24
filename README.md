@@ -46,4 +46,6 @@ Zones: **Shower** (its humidity sensor, the fan and the shower valve) and **Bath
 
 ## License and support
 
+Released under the [MIT License](LICENSE): free to use, change and share, also commercially, as long as the license text stays with it. No warranty.
+
 Report problems with the bug form on GitHub and attach the diagnostics file (Settings › Diagnostics). Security problems: see [SECURITY.md](SECURITY.md).
