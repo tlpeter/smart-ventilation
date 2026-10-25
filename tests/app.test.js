@@ -136,6 +136,7 @@ test('the app against a fake Home Assistant', async (t) => {
   await t.test('a good set-up is saved', async () => {
     const r = await post('/api/settings', SETUP);
     assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual(r.body.warnings, [], 'no warnings for a good set-up');
     const st = await get('/api/status');
     assert.equal(st.configured, true);
     assert.equal(st.zones[0].state, 'idle');
@@ -205,6 +206,17 @@ test('the app against a fake Home Assistant', async (t) => {
     const changes = log.filter((e) => e.type === 'zone' && e.zone === 'shower').map((e) => e.to).reverse();
     assert.deepEqual(changes, ['boost', 'afterrun', 'idle']);
     assert.ok(log.some((e) => e.type === 'advice' && e.actuator === 'unit' && e.value === 75));
+  });
+
+  await t.test('a valve in two zones is saved, with a warning (issue #7)', async () => {
+    const wrong = JSON.parse(JSON.stringify(SETUP));
+    wrong.zones[1].actuators = ['unit', 'v_shower'];
+    const r = await post('/api/settings', wrong);
+    assert.equal(r.status, 200, 'a warning does not stop saving');
+    assert.equal(r.body.warnings.length, 1);
+    assert.match(r.body.warnings[0], /Shower valve is in more than one zone/);
+    const back = await post('/api/settings', SETUP);
+    assert.deepEqual(back.body.warnings, []);
   });
 
   await t.test('a humid house is not a shower', async () => {

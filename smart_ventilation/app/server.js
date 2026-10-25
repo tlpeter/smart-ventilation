@@ -717,7 +717,7 @@ async function handleApi(req, res, url) {
     dashboard.sync();
     readDashboardHelpers();
     evaluate();
-    return sendJson(res, 200, { ok: true, settings: settings.get() });
+    return sendJson(res, 200, { ok: true, settings: settings.get(), warnings: settings.warnings(settings.get()) });
   }
   return sendJson(res, 404, { error: 'Not found' });
 }

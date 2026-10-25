@@ -90,3 +90,25 @@ test('"when more zones boost": kept as a number, empty when not set', () => {
   assert.equal(s.actuators[0].multiBoost, 80);
   assert.equal(s.actuators[1].multiBoost, '');
 });
+
+test('warnings: a valve in more than one zone, not a shared fan (issue #7)', () => {
+  const s = settings.normalise({
+    actuators: [
+      { id: 'unit', name: 'Unit', type: 'fan', entity: 'fan.unit' },
+      { id: 'kd', name: 'Douche klep', type: 'number', entity: 'number.kd' },
+      { id: 'kb', name: 'Badkamer klep', type: 'number', entity: 'number.kb' },
+    ],
+    zones: [
+      { id: 'douche', name: 'Douche', actuators: ['unit', 'kd'] },
+      { id: 'badkamer', name: 'Badkamer', actuators: ['unit', 'kd'] },
+    ],
+  });
+  const w = settings.warnings(s);
+  assert.equal(w.length, 1, 'only the valve, not the shared fan');
+  assert.match(w[0], /^Douche klep is in more than one zone \(Douche, Badkamer\)/);
+  s.zones[1].actuators = ['unit', 'kb'];
+  assert.deepEqual(settings.warnings(s), [], 'each valve in its own zone');
+  s.zones[1].actuators = ['unit', 'kd'];
+  s.zones[1].enabled = false;
+  assert.deepEqual(settings.warnings(s), [], 'a zone that is off does not count');
+});

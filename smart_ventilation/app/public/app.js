@@ -448,6 +448,16 @@ function num(label, key, value, min, max, step, hint) {
   return `<div class="field"><label>${label}</label><input type="number" data-k="${key}" value="${esc(value)}" min="${min}" max="${max}" step="${step}">${hint ? `<div class="hint">${hint}</div>` : ''}</div>`;
 }
 
+// A valve (not a fan) of this zone that is also ticked in another zone: most
+// likely a mistake. The same check as settings.warnings() on the server.
+function sharedValves(z) {
+  if (z.enabled === false) return [];
+  return draft.actuators.filter((a) => a.type !== 'fan' && z.actuators.includes(a.id)).map((a) => {
+    const others = draft.zones.filter((o) => o !== z && o.enabled !== false && o.actuators.includes(a.id)).map((o) => o.name);
+    return others.length ? `${a.name} is also in ${others.join(', ')}. A valve usually belongs to one room.` : null;
+  }).filter(Boolean);
+}
+
 function zonesView() {
   // A setting with a helper on the dashboard is set there, not here.
   const zn = (z, label, key, min, max, step, hint) => {
@@ -465,6 +475,7 @@ function zonesView() {
     <div class="field"><label>Actuators of this zone</label>
       ${draft.actuators.length ? draft.actuators.map((a) => `<label class="check"><input type="checkbox" data-zact="${esc(a.id)}" ${z.actuators.includes(a.id) ? 'checked' : ''}>${esc(a.name)} <span class="muted small">&nbsp;${esc(a.entity || '')}</span></label>`).join('') : '<div class="hint">Add actuators first (Settings › Actuators).</div>'}
       <div class="hint">A fan in more zones is shared: it gets the highest level any zone asks for.</div>
+      ${sharedValves(z).map((w) => `<div class="warn small">⚠ ${esc(w)}</div>`).join('')}
     </div>
     <details><summary>Detection and timing</summary>
       <div class="grid3">
@@ -623,6 +634,7 @@ function bind() {
       const id = inp.dataset.zact;
       z.actuators = inp.checked ? [...new Set([...z.actuators, id])] : z.actuators.filter((x) => x !== id);
       markDirty();
+      renderSettings(); // shows or clears the warning for a valve in two zones
     }));
     $('[data-act="del-zone"]', card).onclick = () => { draft.zones.splice(Number(card.dataset.zone), 1); markDirty(); renderSettings(); };
   });
@@ -710,7 +722,10 @@ $('#save-btn').addEventListener('click', async () => {
     dirty = false;
     suggestNotes = [];
     dash = await loadDash();
-    msg.innerHTML = '<span class="ok">Saved.</span>';
+    const warns = r.warnings || [];
+    msg.innerHTML = warns.length
+      ? `<b class="warn">Saved, with a warning:</b><ul class="errors warn">${warns.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>`
+      : '<span class="ok">Saved.</span>';
     renderSettings();
     showDirty();
     unsavedGuard.writeDone(true);

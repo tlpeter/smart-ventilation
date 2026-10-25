@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.5-dev
+
+- Settings: a warning when one valve is ticked in more than one zone, for example the shower valve under the bathroom too. It shows under the zone as soon as you tick it, and after saving ("Saved, with a warning"). Saving still works. A shared fan gets no warning. (#7)
+- Tests: the warning, and that a good set-up has none.
+
 ## 0.3.4-dev
 
 - Fix: Showers today stayed 0 in a humid room. A shower there often passes the safety net first (one jump above the absolute trigger), before the rise is big enough. Now, when the fast rise follows within the rise window, that boost counts as a shower after all. It stays the same boost. (#6)

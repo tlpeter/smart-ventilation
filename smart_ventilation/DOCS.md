@@ -51,7 +51,7 @@ Levels:
 - **When more zones boost** (optional, numbers and fan percentage): the value when two or more of this actuator's zones boost at the same time. Meant for a shared fan, for example 80 while one zone alone uses 75. Not lower than boost. Empty: boost, as for one zone. Boost in one zone and afterrun in the other is still boost.
 - **Night maximum** (optional, numbers and fan percentage): the highest value during the night window. It also caps "when more zones boost".
 
-An actuator used by more than one zone is **shared**: it gets the highest level any of its zones asks for.
+An actuator used by more than one zone is **shared**: it gets the highest level any of its zones asks for. That is normal for a fan. For a valve, select or switch it is most likely a mistake (a valve belongs to one room), so the app warns about it in Settings › Zones and when you save. Saving still works.
 
 The app checks the values against the entity when you save (range, step, presets, options).
 

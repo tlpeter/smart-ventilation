@@ -140,7 +140,10 @@ button { font: inherit; cursor: pointer; }
 .save-bar { display: flex; align-items: center; gap: 12px; position: sticky; bottom: 8px; }
 .save-bar > div { flex: 1; }
 .errors { color: var(--bad); margin: 0; padding-left: 18px; }
+.errors.warn { color: var(--warning); }
 .ok { color: var(--good); }
+.warn { color: var(--warning); }
+div.warn { margin-top: 4px; }
 .refs .chip { margin: 0 6px 6px 0; }
 .refs .chip button { border: 0; background: none; color: var(--muted); padding: 0 0 0 4px; }
 a { color: var(--accent); }

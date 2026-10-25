@@ -141,6 +141,19 @@ function validate(s, meta) {
   return errors;
 }
 
+// Things that are allowed, but are most likely a mistake. Saving still works.
+// A fan is meant to be shared between zones; a valve (or select, switch)
+// usually belongs to one room.
+function warnings(s) {
+  const out = [];
+  for (const a of s.actuators) {
+    if (a.type === 'fan') continue;
+    const zones = s.zones.filter((z) => z.enabled !== false && z.actuators.includes(a.id));
+    if (zones.length > 1) out.push(`${a.name} is in more than one zone (${zones.map((z) => z.name).join(', ')}). A valve usually belongs to one room: check Settings › Zones.`);
+  }
+  return out;
+}
+
 let current = normalise(readJson(FILE, {}));
 
 function get() { return current; }
@@ -151,4 +164,4 @@ function save(next) {
   return current;
 }
 
-module.exports = { get, save, normalise, validate, GENERAL_DEFAULTS };
+module.exports = { get, save, normalise, validate, warnings, GENERAL_DEFAULTS };
