@@ -116,6 +116,7 @@ async function renderHome() {
   const goLive = $('#go-live');
   if (goLive) goLive.onclick = (e) => { e.preventDefault(); goTo('settings', 'general'); };
   $$('[data-go-activity]', el).forEach((a) => { a.onclick = (ev) => { ev.preventDefault(); goTo('activity'); }; });
+  $$('a[data-entity]', el).forEach((a) => { a.onclick = (ev) => { if (openMoreInfo(a.dataset.entity)) ev.preventDefault(); }; });
   for (const z of status.zones) drawChart(z.id);
 }
 
@@ -158,12 +159,33 @@ function historyUrl(ids) {
   return `/history?entity_id=${list.map(encodeURIComponent).join(',')}&start_date=${encodeURIComponent(start)}`;
 }
 
-// One tile. With entities it is a link to their history in Home Assistant.
+// Open Home Assistant's own pop-up for one entity (the same one as when you
+// tap an entity in Home Assistant), with its history. The app runs in a frame
+// inside Home Assistant at the same address, so it can ask the page around it.
+// Only shows a pop-up: nothing is changed. Returns false when that is not
+// possible (for example the app opened on its own); then the link is used.
+function openMoreInfo(entityId) {
+  try {
+    if (!entityId || window.parent === window) return false;
+    const ha = window.parent.document.querySelector('home-assistant');
+    if (!ha) return false;
+    ha.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId }, bubbles: true, composed: true }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// One tile. With entities it opens their history: one entity in Home
+// Assistant's pop-up on the same page, more than one (or no pop-up possible)
+// on Home Assistant's history page.
 function tile(label, value, ids, extra = '', cls = '') {
-  const url = historyUrl(ids);
+  const list = (ids || []).filter(Boolean);
+  const url = historyUrl(list);
   const inner = `<span>${esc(label)}</span><b>${value}</b>${extra ? `<span>${esc(extra)}</span>` : ''}`;
   if (!url) return `<div class="figure ${cls}">${inner}</div>`;
-  return `<a class="figure link ${cls}" href="${esc(url)}" target="_top" title="History in Home Assistant">${inner}</a>`;
+  const one = list.length === 1 ? ` data-entity="${esc(list[0])}"` : '';
+  return `<a class="figure link ${cls}" href="${esc(url)}" target="_top"${one} title="History">${inner}</a>`;
 }
 
 function devicesRow(z) {

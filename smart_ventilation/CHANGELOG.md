@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.7-dev
+
+- Home: a tap on a tile now opens Home Assistant's own pop-up with the history, on the same page, instead of going to the history page. The pop-up only shows; the app changes nothing. With more than one reference sensor, the history page still opens (the pop-up shows one entity). (#8)
+- Checked by hand in a page that works like Home Assistant: the pop-up request reaches Home Assistant and the page stays.
+
 ## 0.3.6-dev
 
 - Home: tap a tile in a zone card to see its history in Home Assistant (last 24 hours). Humidity, baseline and rise open the humidity sensor, reference the reference sensors, temperature the temperature sensor, the fan and valves their own entity. Showers today opens Activity. A small ↗ shows which tiles open Home Assistant (always on a phone, on hover on a computer). (#8)
