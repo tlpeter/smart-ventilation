@@ -227,3 +227,35 @@ test('a room whose normal level is above the absolute trigger does not boost aga
   engine.evaluateZone({}, st2, input(steady(80), 0));
   assert.equal(st2.absLatch, false);
 });
+
+test('a boost from the safety net becomes a shower when the fast rise follows soon after (issue #6)', () => {
+  const h = steady(82.8, [[1, 88.9]]);
+  const st = engine.newZoneState(T0);
+  engine.evaluateZone({}, st, input(h, 1));
+  assert.equal(st.trigger, 'humid', 'only +6.1: the safety net starts it');
+  const boostStart = st.boostStart;
+  const baseline = st.baseline;
+  engine.addSample(h, T0 + 1.5 * MIN, 92.6, T0 + 1.5 * MIN);
+  const r = engine.evaluateZone({}, st, input(h, 1.5));
+  assert.deepEqual(r.retrigger, { trigger: 'shower', reason: st.reason });
+  assert.equal(r.change, null, 'still the same boost');
+  assert.equal(st.state, 'boost');
+  assert.equal(st.trigger, 'shower');
+  assert.match(st.reason, /Shower detected: \+9\.8/);
+  assert.equal(st.boostStart, boostStart);
+  assert.equal(st.baseline, baseline);
+  // Only once.
+  assert.equal(engine.evaluateZone({}, st, input(h, 2)).retrigger, undefined);
+});
+
+test('a boost from the safety net stays a safety-net boost without a fast rise, or when the rise comes too late', () => {
+  const slow = steady(84, [[1, 86], [3, 87], [6, 88]]);
+  const a = engine.newZoneState(T0);
+  for (const m of [1, 3, 6]) engine.evaluateZone({}, a, input(slow, m));
+  assert.equal(a.trigger, 'humid');
+  const late = steady(84, [[1, 86], [8, 87], [9, 96]]);
+  const b = engine.newZoneState(T0);
+  for (const m of [1, 8, 9]) engine.evaluateZone({ minBoostMin: 30 }, b, input(late, m));
+  assert.equal(b.state, 'boost');
+  assert.equal(b.trigger, 'humid', 'after the rise window the start stays as it was');
+});

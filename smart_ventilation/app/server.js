@@ -363,7 +363,19 @@ function evaluate() {
     if (!zoneStates[z.id]) zoneStates[z.id] = engine.newZoneState(t);
     if (z.enabled === false) continue;
     const input = zoneInput(z, t);
-    const { change } = engine.evaluateZone(z, zoneStates[z.id], input);
+    const { change, retrigger } = engine.evaluateZone(z, zoneStates[z.id], input);
+    if (retrigger) {
+      // The boost started on the safety net, but it is a shower after all:
+      // mark the start of this boost in the log, so Showers today counts it.
+      const start = [...logEntries].reverse().find((e) => e.type === 'zone' && e.zone === z.id && e.to === 'boost');
+      if (start) {
+        start.trigger = retrigger.trigger;
+        start.reason = `${start.reason}, then ${retrigger.reason.charAt(0).toLowerCase()}${retrigger.reason.slice(1)}`;
+        try { writeJsonAtomic(LOG_FILE, logEntries); } catch (err) { ha.warn('Could not save log:', err.message); }
+      }
+      ha.log(`${z.name}: the safety-net boost is a shower (${retrigger.reason})`);
+      changed = true;
+    }
     if (change) {
       changed = true;
       const fig = engine.zoneFigures(z, zoneStates[z.id], input);

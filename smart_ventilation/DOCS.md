@@ -21,7 +21,7 @@ Every zone (room) goes through the same states:
 
 After a boost that ended on the maximum time, or that stopped "back to normal" while the humidity is still above the absolute trigger (a room whose normal level is that high), the absolute trigger waits until the humidity is clearly below it again (below the trigger minus the stop margin), so a humid day does not keep restarting the boost. This is kept when the app restarts.
 
-**Showers today** on Home counts only boosts started by a fast rise; a boost from the safety net is not a shower.
+**Showers today** on Home counts only boosts started by a fast rise; a boost from the safety net is not a shower. In a humid room a shower often passes the safety net first: when the fast rise follows within the rise window, that boost counts as a shower after all.
 
 ## Where to set it up
 

@@ -25,13 +25,13 @@ const SETTINGS = {
   general: { references: [], nightEnabled: false, nightStart: '23:00', nightEnd: '07:00', sensorTimeoutMin: 60 },
 };
 
-async function startWith(runtime, log) {
+async function startWith(runtime, log, { level = 90, then = null } = {}) {
   const ha = await startFakeHa({
     states: [
-      entity('sensor.shower_humidity', 90, { device_class: 'humidity', unit_of_measurement: '%' }),
+      entity('sensor.shower_humidity', level, { device_class: 'humidity', unit_of_measurement: '%' }),
       entity('fan.unit', 'on', { percentage: 10, percentage_step: 1, supported_features: 49 }),
     ],
-    history: { 'sensor.shower_humidity': [{ s: '90', lu: (Date.now() - 50 * 60000) / 1000 }] },
+    history: { 'sensor.shower_humidity': [{ s: String(then ? then.before : level), lu: (Date.now() - 50 * 60000) / 1000 }] },
   });
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sv-restart-'));
   fs.writeFileSync(path.join(dataDir, 'settings.json'), JSON.stringify(SETTINGS));
@@ -46,11 +46,15 @@ async function startWith(runtime, log) {
   const base = `http://127.0.0.1:${port}`;
   let st;
   for (let i = 0; i < 50; i++) {
-    try { st = await (await fetch(`${base}/api/status`)).json(); if (st.connected && st.zones[0].figures.humidity === 90) break; } catch { /* starting */ }
+    try { st = await (await fetch(`${base}/api/status`)).json(); if (st.connected && st.zones[0].figures.humidity === level) break; } catch { /* starting */ }
     await sleep(100);
   }
   await sleep(500); // a few evaluations
+  if (then) {
+    for (const v of then.values) { ha.setState('sensor.shower_humidity', v); await sleep(300); }
+  }
   st = await (await fetch(`${base}/api/status`)).json();
+  st.log = await (await fetch(`${base}/api/log`)).json();
   child.kill();
   await ha.close();
   return st;
@@ -79,4 +83,18 @@ test('"Showers today" counts showers, not safety-net boosts (also old log lines 
     { t, type: 'zone', zone: 'shower', name: 'Shower', from: 'idle', to: 'boost', reason: 'Humidity 89.7% is above 85%' },
   ]);
   assert.equal(st.zones[0].showersToday, 1);
+});
+
+test('a shower that starts on the safety net still counts as a shower (issue #6)', async () => {
+  // The numbers from a real shower: the room rests at 82.8 %, one jump to
+  // 88.9 % (+6.1, above the 85 % safety net), then 92.6 % (+9.8).
+  const st = await startWith({ savedAt, zones: { shower: { state: 'idle', since: savedAt, absLatch: false } } }, null,
+    { level: 88.9, then: { before: 82.8, values: [92.6] } });
+  assert.equal(st.zones[0].state, 'boost');
+  assert.match(st.zones[0].reason, /Shower detected/);
+  assert.equal(st.zones[0].showersToday, 1);
+  const start = st.log.find((e) => e.type === 'zone' && e.to === 'boost');
+  assert.equal(start.trigger, 'shower');
+  assert.match(start.reason, /above 85%, then shower detected/);
+  assert.equal(st.log.filter((e) => e.type === 'zone' && e.to === 'boost').length, 1, 'still one boost');
 });

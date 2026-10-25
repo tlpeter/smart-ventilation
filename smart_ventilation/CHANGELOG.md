@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4-dev
+
+- Fix: Showers today stayed 0 in a humid room. A shower there often passes the safety net first (one jump above the absolute trigger), before the rise is big enough. Now, when the fast rise follows within the rise window, that boost counts as a shower after all. It stays the same boost. (#6)
+- Tests: that shower, with the numbers from a real one, in the logic and in the whole app.
+
 ## 0.3.3-dev
 
 - New, optional per actuator: **When more zones boost** (Settings › Actuators). The value when two or more of its zones boost at the same time, for example the shared fan at 80 % when the shower and the bathroom both boost (75 % for one). Empty: as before. The night maximum still caps it. (#5)

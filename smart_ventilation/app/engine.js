@@ -192,6 +192,16 @@ function evaluateZone(cfgIn, st, input) {
   // 3. Boosting: stop when the room is back to normal, or at the maximum time.
   if (st.state === 'boost') {
     const ran = now - (st.boostStart || now);
+    // A shower in a humid room often passes the safety net first, before the
+    // rise is big enough. A fast rise soon after the start makes it a shower.
+    if (st.trigger === 'humid' && ran <= windowMs) {
+      const shower = showerRise(cfg, input, now, windowMs);
+      if (shower) {
+        st.trigger = 'shower';
+        st.reason = shower.reason;
+        return { ...result(st, before), retrigger: { trigger: 'shower', reason: shower.reason } };
+      }
+    }
     if (st.trigger === 'manual') {
       // Set back to Auto during a boost by hand.
       go('afterrun', 'Boost by hand stopped');
@@ -227,7 +237,9 @@ function evaluateZone(cfgIn, st, input) {
   return result(st, before);
 }
 
-function detect(cfg, st, input, h, ref, now, windowMs) {
+// The shower test: a fast rise of the room itself (the house rise taken
+// off), and warmth too when that check is on.
+function showerRise(cfg, input, now, windowMs) {
   const rise = riseInWindow(input.humidity.history, now, windowMs);
   const refRise = input.reference && input.reference.history.length
     ? Math.max(0, riseInWindow(input.reference.history, now, windowMs)) : 0;
@@ -240,6 +252,12 @@ function detect(cfg, st, input, h, ref, now, windowMs) {
     const extra = refRise > 0 ? ` (house rose ${round1(refRise)})` : '';
     return { kind: 'shower', reason: `Shower detected: +${round1(ownRise)} points in ${cfg.riseWindowMin} min${extra}` };
   }
+  return null;
+}
+
+function detect(cfg, st, input, h, ref, now, windowMs) {
+  const shower = showerRise(cfg, input, now, windowMs);
+  if (shower) return shower;
   if (h >= cfg.absoluteTrigger && !st.absLatch && (ref === null || h - ref >= cfg.stopMargin)) {
     return { kind: 'humid', reason: `Humidity ${round1(h)}% is above ${cfg.absoluteTrigger}%` };
   }
