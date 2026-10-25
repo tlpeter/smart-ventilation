@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0-dev
+
+- New: **Live control** (Settings › General, off by default). On: the app really sets the fan and valves, instead of only showing advice. The chip at the top says **Live** or **Dry-run**.
+- Per actuator a **Live** tick (on by default), so you can start with only the fan, for example.
+- The app sends a value only when the advice changes and the device is not at it yet. A change by hand stays until the next shower.
+- A device that does not follow gets 3 tries, 2 minutes apart; then the app stops and notes it in Activity. Errors from Home Assistant show on Home and in Activity.
+- Turning Live control off, unticking Live, or stopping the app (for example an update) sets what the app moved back to rest.
+- Safety: the app can call only six actions (fan percentage or preset, number, select, switch on/off), only on the actuators chosen in the app and marked Live. Everything else is refused.
+- Turn off your own automations for these fans and valves before you turn on Live control.
+- Tests: when to send and when to stop trying, the whole app with a fake Home Assistant that follows the actions (a shower, a change by hand, a stuck valve, an error, turning off, stopping the app), and the real Home Assistant Core test now also checks that the demo fan and numbers really change. Home Assistant Core for that test: 2026.10.4.
+
 ## 0.2.1-dev
 
 - The humidity chart on Home can look further back: choose **3 h**, **24 h**, **3 days** or **7 days** above the chart (the same as in Smart Heating Planner). The choice counts for all zones, and this browser remembers it.

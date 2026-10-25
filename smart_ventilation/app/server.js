@@ -2,8 +2,9 @@
 
 // Smart Ventilation: the web server and the loop that follows the sensors.
 //
-// DRY-RUN ONLY: this version works out what the fan and valves should do and
-// shows it as advice. It never sends anything to them.
+// The app works out what the fan and valves should do. With Live control off
+// (the default) it only shows that as advice. With Live control on it also
+// sets the actuators that are marked live (control.js says when).
 
 const http = require('http');
 const fs = require('fs');
@@ -15,6 +16,7 @@ const settings = require('./settings');
 const engine = require('./engine');
 const chart = require('./chart');
 const actuators = require('./actuators');
+const control = require('./control');
 const { readJson, writeJsonAtomic } = require('./jsonstore');
 const { createDashboard } = require('./dashboard');
 
@@ -44,6 +46,8 @@ const histories = new Map(); // entity_id -> [{ t, v }]
 let referenceHistory = []; // median of the reference sensors over time
 let zoneStates = {}; // zone id -> engine state
 let advice = {}; // actuator id -> { level, value, why, night, command }
+let controlMemory = {}; // actuator id -> what Live control sent (control.plan)
+const handingBack = new Set(); // entities being set back to rest right now
 let logEntries = readJson(LOG_FILE, []);
 if (!Array.isArray(logEntries)) logEntries = [];
 const lastPublished = new Map(); // entity_id -> { value, at }
@@ -280,6 +284,76 @@ function setMode(zoneId, mode, source) {
   evaluate();
 }
 
+// ---------------------------------------------------------------------------
+// Live control
+// ---------------------------------------------------------------------------
+
+function liveControlOn(s = settings.get()) { return s.general.liveControl === true; }
+function isLive(a, s = settings.get()) { return liveControlOn(s) && a.live !== false && !!a.entity; }
+
+// SAFETY: the app may only change an actuator chosen in the app, marked live,
+// with Live control on; or one it is setting back to rest right now.
+ha.setActionPolicy((entity) => {
+  if (handingBack.has(entity)) return true;
+  const s = settings.get();
+  return s.actuators.some((a) => a.entity === entity && isLive(a, s));
+});
+
+function restValue(a) { return actuators.valueOf(a, 'idle'); }
+
+function toleranceOf(a) {
+  const st = entityStates.get(a.entity);
+  return control.tolerance(a, st ? actuators.describeEntity(st) : null);
+}
+
+async function sendValue(a, value, level, why, tries) {
+  const command = actuators.commandFor(a, value);
+  const entry = { type: 'sent', actuator: a.id, name: a.name, value, level, why, command, tries: tries || 1 };
+  try {
+    await ha.callAction(command);
+    addLog({ ...entry, ok: true });
+    ha.log(`${a.name}: set to ${value} (${why})${tries > 1 ? `, try ${tries}` : ''}`);
+  } catch (err) {
+    addLog({ ...entry, ok: false, error: err.message });
+    ha.warn(`${a.name}: could not set ${value}:`, err.message);
+    if (controlMemory[a.id]) controlMemory[a.id].error = err.message;
+  }
+}
+
+// Send what the advice asks, to the live actuators (see control.js).
+function drive(t) {
+  if (!ha.state.connected) return;
+  const s = settings.get();
+  const acts = s.actuators.filter((a) => isLive(a, s) && advice[a.id]);
+  const items = acts.map((a) => ({ id: a.id, target: advice[a.id].value, current: actuators.currentValue(a, entityStates.get(a.entity)), tol: toleranceOf(a) }));
+  const r = control.plan(items, controlMemory, t);
+  controlMemory = r.memory;
+  for (const id of r.send) {
+    const a = acts.find((x) => x.id === id);
+    const d = advice[id];
+    sendValue(a, d.value, d.level, d.why, controlMemory[id].tries);
+  }
+  for (const id of r.gaveUp) {
+    const a = acts.find((x) => x.id === id);
+    const reason = `${a.name} did not go to ${advice[id].value} after ${control.MAX_TRIES} tries. The app stops trying until the next change.`;
+    addLog({ type: 'gave-up', actuator: id, name: a.name, value: advice[id].value, reason });
+    ha.warn(reason);
+  }
+}
+
+// Set actuators the app moved back to rest (Live control turned off, an
+// actuator no longer live, or the app stopping). acts: actuator settings.
+async function handBack(acts, why) {
+  const items = acts.filter((a) => a.entity).map((a) => ({ id: a.id, rest: restValue(a), current: actuators.currentValue(a, entityStates.get(a.entity)), tol: toleranceOf(a) }));
+  const ids = control.handBack(items, controlMemory);
+  for (const a of acts) delete controlMemory[a.id];
+  await Promise.all(ids.map(async (id) => {
+    const a = acts.find((x) => x.id === id);
+    handingBack.add(a.entity);
+    try { await sendValue(a, restValue(a), 'idle', why); } finally { handingBack.delete(a.entity); }
+  }));
+}
+
 function evaluate() {
   if (!started) return;
   const s = settings.get();
@@ -308,11 +382,13 @@ function evaluate() {
     const command = a.entity ? actuators.commandFor(a, d.value) : null;
     next[a.id] = { ...d, command };
     const prev = advice[a.id];
-    if (!prev || prev.value !== d.value) {
+    // A live actuator gets a "sent" line when the value is really sent.
+    if ((!prev || prev.value !== d.value) && !isLive(a, s)) {
       addLog({ type: 'advice', actuator: a.id, name: a.name, value: d.value, level: d.level, why: d.why, command });
     }
   }
   advice = next;
+  if (liveControlOn(s)) drive(t);
   publish(t).catch((err) => ha.debug('Publishing sensors failed:', err.message));
 }
 
@@ -331,7 +407,7 @@ async function publish(t) {
   for (const a of s.actuators) {
     const d = advice[a.id];
     if (!d) continue;
-    items.push([`sensor.smart_ventilation_${a.id}_advised_level`, d.value, { friendly_name: `${a.name} advised level`, level: d.level, why: d.why, dry_run: true }]);
+    items.push([`sensor.smart_ventilation_${a.id}_advised_level`, d.value, { friendly_name: `${a.name} advised level`, level: d.level, why: d.why, dry_run: !isLive(a, s) }]);
   }
   for (const [id, value, attrs] of items) {
     const key = JSON.stringify([value, attrs]);
@@ -368,11 +444,12 @@ function status() {
   });
   const acts = s.actuators.map((a) => {
     const d = advice[a.id] || {};
-    return { id: a.id, name: a.name, type: a.type, entity: a.entity, unit: actuators.isNumeric(a) ? '%' : '', advised: d.value ?? null, level: d.level || null, why: d.why || '', night: !!d.night, command: d.command || null, current: actuators.currentValue(a, entityStates.get(a.entity)) };
+    return { id: a.id, name: a.name, type: a.type, entity: a.entity, unit: actuators.isNumeric(a) ? '%' : '', advised: d.value ?? null, level: d.level || null, why: d.why || '', night: !!d.night, command: d.command || null, current: actuators.currentValue(a, entityStates.get(a.entity)), live: isLive(a, s), control: isLive(a, s) ? controlMemory[a.id] || null : null };
   });
   return {
     version: APP_VERSION,
-    mode: 'dry-run',
+    mode: liveControlOn(s) ? 'live' : 'dry-run',
+    maxTries: control.MAX_TRIES,
     connected: ha.state.connected,
     haVersion: ha.state.version,
     error: ha.state.lastError,
@@ -589,7 +666,22 @@ async function handleApi(req, res, url) {
       if (errors.length) return sendJson(res, 400, { error: 'Not saved', errors });
     }
     const before = trackedEntities();
+    const old = settings.get();
     settings.save(next);
+    // Live control: actuators that are no longer live (or now have another
+    // entity) go back to rest, if the app had moved them.
+    const stopped = old.actuators.filter((a) => {
+      if (!isLive(a, old)) return false;
+      const now2 = next.actuators.find((x) => x.id === a.id);
+      return !now2 || now2.entity !== a.entity || !isLive(now2, settings.get());
+    });
+    if (liveControlOn(old) !== liveControlOn()) {
+      const on = liveControlOn();
+      const reason = on ? 'Live control on: the app now sets the live actuators' : 'Live control off: the app only shows advice again';
+      addLog({ type: 'settings', reason });
+      ha.log(reason);
+    }
+    if (stopped.length && ha.state.connected) await handBack(stopped, 'Live control stopped for this actuator: back to rest');
     // New zones start fresh; removed zones are forgotten.
     const ids = new Set(next.zones.map((z) => z.id));
     for (const id of Object.keys(zoneStates)) if (!ids.has(id)) delete zoneStates[id];
@@ -646,9 +738,31 @@ ha.onConnect(async () => {
 ha.onStateChanged(onState);
 
 server.listen(PORT, () => {
-  ha.log(`Smart Ventilation ${APP_VERSION} on port ${PORT} (dry-run: advice only, nothing is sent)`);
+  ha.log(`Smart Ventilation ${APP_VERSION} on port ${PORT} (${liveControlOn() ? 'Live control on: sets the live actuators' : 'dry-run: advice only, nothing is sent'})`);
   ha.connect();
 });
 setInterval(evaluate, TICK_MS);
+
+// Stopping (an update, a restart): with Live control on, the fan and valves
+// the app moved go back to rest, so nothing stays on boost while the app is
+// gone. At most a few seconds.
+let stopping = false;
+async function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  ha.log(`Stopping (${signal})`);
+  try {
+    if (liveControlOn() && ha.state.connected) {
+      const s = settings.get();
+      await Promise.race([handBack(s.actuators.filter((a) => isLive(a, s)), 'The app is stopping: back to rest'), new Promise((r) => setTimeout(r, 5000))]);
+    }
+  } catch (err) {
+    ha.warn('Could not set back to rest:', err.message);
+  }
+  saveRuntime();
+  process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 module.exports = { server };

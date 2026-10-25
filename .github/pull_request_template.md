@@ -9,5 +9,5 @@
 
 ## Safety
 
-- [ ] The app still only reads Home Assistant, and only writes its own `smart_ventilation_*` sensors when "Publish sensors" is on
+- [ ] With Live control off the app only reads Home Assistant; with it on it calls only the six actions in `ha.js` on live actuators; it only writes its own `smart_ventilation_*` sensors when "Publish sensors" is on
 - [ ] The app never changes automations, scripts or helpers

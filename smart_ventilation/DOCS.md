@@ -1,6 +1,6 @@
 # Smart Ventilation
 
-Ventilates showers and bathrooms on the humidity curve. This version is a **dry-run**: it shows what it would set, and never changes your fan or valves.
+Ventilates showers and bathrooms on the humidity curve. By default it is a **dry-run**: it shows what it would set, and never changes your fan or valves. With **Live control** on (Settings › General) it really sets them.
 
 ## How it works
 
@@ -35,7 +35,7 @@ Set up in this order: **1 · Actuators** (fan and valves, with their percentages
 
 Add the things that move or steer the air. Each actuator has a type, an entity (chosen with the search box) and a value per level.
 
-| Type | Home Assistant action it would use | Values |
+| Type | Home Assistant action it uses | Values |
 | --- | --- | --- |
 | Fan, percentage | `fan.set_percentage` | 0–100 |
 | Fan, preset | `fan.set_preset_mode` | the fan's presets (only shown when the fan has them) |
@@ -53,6 +53,8 @@ Levels:
 An actuator used by more than one zone is **shared**: it gets the highest level any of its zones asks for.
 
 The app checks the values against the entity when you save (range, step, presets, options).
+
+**Live** (on by default): with Live control on, the app may set this actuator. Untick it to keep one actuator on advice only, for example to start with only the fan.
 
 ## Settings › Zones
 
@@ -80,9 +82,28 @@ All numbers are starting points: tune them with the chart on Home and the Activi
 
 ## Settings › General
 
+- **Live control** (off by default): see below.
 - **Reference sensors** (optional): humidity sensors in other rooms. The app uses their median. A rise in the whole house (weather) does not count as a shower, and a boost also stops when the room is back near the rest of the house.
 - **Night**: from / until, and whether the actuators' night maximum is used.
-- **Sensor timeout** (default 60 min): no reading for this long counts as a sensor problem. The app uses the time of the last report (`last_reported`), so a sensor that reports the same value still counts as alive.- **Dashboard controls** (off by default): see below.
+- **Sensor timeout** (default 60 min): no reading for this long counts as a sensor problem. The app uses the time of the last report (`last_reported`), so a sensor that reports the same value still counts as alive.
+- **Dashboard controls** (off by default): see below.
+
+## Live control
+
+Off: the app only shows what it would set (dry-run). On: it sets the actuators marked **Live**.
+
+**Before you turn it on**, turn off your own automations or blueprints for these fans and valves. Otherwise they work against each other.
+
+How it works:
+
+1. The app sends a value **when the advice changes** (a shower starts, afterrun, back to rest), and only when the device is not at that value already.
+2. A **change by hand** (or by another automation) stays until the next change of the advice. The app does not keep setting it back.
+3. **Did a device not follow?** The app tries again after 2 minutes, 3 tries in all. Then it stops and writes it in Activity, until the next change. A fan with fixed speed steps counts as there when it is within half a step (for example 67% for 75% on a fan with 3 speeds).
+4. An **error** from Home Assistant (device not responding) is shown on Home and in Activity, and counts as a try.
+5. **Turning Live control off**, unticking **Live** on an actuator, or **stopping the app** (for example for an update) sets what the app moved back to **rest**. A value set by hand while the app asked for rest is left alone. After a restart during a shower, the boost continues and is set again.
+6. A sensor problem or a zone set to **Off** means rest, as always.
+
+The app can call only the six actions in the table above, only on the actuators chosen in the app and marked Live. Everything else is refused in the code.
 
 ## Dashboard controls
 
@@ -119,13 +140,13 @@ The app needs the Home Assistant config folder for this (`homeassistant_config`,
 
 ## Configuration tab (Home Assistant)
 
-- **Publish sensors** (off by default): writes the app's own sensors to Home Assistant, per zone `sensor.smart_ventilation_<zone>_state`, `sensor.smart_ventilation_<zone>_baseline` and `binary_sensor.smart_ventilation_<zone>_shower_detected`, and per actuator `sensor.smart_ventilation_<actuator>_advised_level`. Home Assistant forgets them after its own restart; the app writes them again within 5 minutes.
+- **Publish sensors** (off by default): writes the app's own sensors to Home Assistant, per zone `sensor.smart_ventilation_<zone>_state`, `sensor.smart_ventilation_<zone>_baseline` and `binary_sensor.smart_ventilation_<zone>_shower_detected`, and per actuator `sensor.smart_ventilation_<actuator>_advised_level` (attribute `dry_run`: false when the app sets this actuator live). Home Assistant forgets them after its own restart; the app writes them again within 5 minutes.
 - **Log level**: use debug when reporting a problem.
 
 ## Home and Activity
 
-- **Home** shows per zone: the state and why, humidity, baseline, rise in the window, reference, showers today, and a chart of the humidity with the boost and afterrun periods. Above the chart you choose how far back: **3 h** (default), **24 h**, **3 days** or **7 days**; this browser remembers it. 3 hours uses the app's own readings and shows the baseline. Longer comes from Home Assistant's history (kept 10 days by default, `recorder:` → `purge_keep_days`); the bands come from the Activity log (the last 500 lines). Below: per actuator the current value, the advice, and the action the app would send.
-- **Activity** lists every zone change and every change in advice, newest first.
+- **Home** shows per zone: the state and why, humidity, baseline, rise in the window, reference, showers today, and a chart of the humidity with the boost and afterrun periods. Above the chart you choose how far back: **3 h** (default), **24 h**, **3 days** or **7 days**; this browser remembers it. 3 hours uses the app's own readings and shows the baseline. Longer comes from Home Assistant's history (kept 10 days by default, `recorder:` → `purge_keep_days`); the bands come from the Activity log (the last 500 lines). Below: per actuator the current value and the advice. With Live control: what the app set and whether the device followed (or the error). Without: the action the app would send. The chip at the top says **Dry-run** or **Live**.
+- **Activity** lists every zone change, every change in advice, and with Live control every value sent (✓ or the error), newest first.
 
 ## Diagnostics
 

@@ -5,8 +5,8 @@
 // restricted (while another zone boosts) and an optional night maximum.
 //
 // This module works out the value every actuator should have, and the Home
-// Assistant action that would set it. In this version the app only shows
-// that action as advice; it never sends it.
+// Assistant action that sets it. With Live control off the app only shows
+// that action as advice; with Live control on server.js sends it.
 
 const TYPES = ['fan', 'number', 'select', 'switch'];
 const LEVEL_RANK = { idle: 0, restricted: 0, afterrun: 1, boost: 2 };
@@ -159,4 +159,4 @@ function currentValue(act, s) {
   return null;
 }
 
-module.exports = { TYPES, describeEntity, validateActuator, decide, commandFor, currentValue, isNumeric };
+module.exports = { TYPES, describeEntity, validateActuator, decide, commandFor, currentValue, isNumeric, valueOf };

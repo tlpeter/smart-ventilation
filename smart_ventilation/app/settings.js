@@ -22,6 +22,7 @@ const GENERAL_DEFAULTS = {
   nightEnd: '07:00',
   sensorTimeoutMin: 60,
   dashboardHelpers: false,
+  liveControl: false,
 };
 
 function slug(text, used) {
@@ -75,6 +76,8 @@ function normalise(raw) {
       afterrun: levelValue(a && a.afterrun),
       restricted: levelValue(a && a.restricted),
       nightMax: levelValue(a && a.nightMax),
+      // With Live control on: may the app set this one? (Off = advice only.)
+      live: !(a && a.live === false),
     };
   });
   const actuatorIds = new Set(actuators.map((a) => a.id));
@@ -109,6 +112,8 @@ function normalise(raw) {
     nightEnd: time(g.nightEnd, GENERAL_DEFAULTS.nightEnd),
     sensorTimeoutMin: num(g.sensorTimeoutMin, GENERAL_DEFAULTS.sensorTimeoutMin, 5, 720),
     dashboardHelpers: g.dashboardHelpers === true,
+    // Off by default: the app only shows what it would set.
+    liveControl: g.liveControl === true,
   };
   return { version: 1, zones, actuators, general };
 }

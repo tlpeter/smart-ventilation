@@ -6,6 +6,8 @@
 // and numbers (the ventilation unit and the valves) and humidity sensors that
 // follow input_number helpers, so the test can simulate a shower.
 // The test makes a throw-away owner account and starts the real app.
+// First in dry-run (nothing may change), then with Live control on (the
+// demo fan and numbers must really change, and go back to rest).
 //
 // Skipped unless HA_CORE_TEST=1 (set by the workflow), so
 // `node --test tests/*.test.js` works without Home Assistant.
@@ -209,4 +211,46 @@ async function run() {
   assert.equal(fanAfter.attributes.percentage, before.fan, 'the fan was changed');
   assert.equal((await haGet(`states/${v1.entity_id}`)).state, before.v1, 'a valve was changed');
   assert.equal((await haGet(`states/${v2.entity_id}`)).state, before.v2, 'a valve was changed');
+
+  // LIVE CONTROL: now the app really sets the demo fan and numbers.
+  const near = (v, target, step) => Math.abs(Number(v) - Number(target)) <= Number(step || 1) / 2 + 1e-9;
+  const fanStep = Number(fanState.attributes.percentage_step) || 1;
+  const fanAt = async (target) => near((await haGet(`states/${fanState.entity_id}`)).attributes.percentage, target, fanStep);
+  const numAt = async (n, target) => near((await haGet(`states/${n.entity_id}`)).state, target, n.attributes.step);
+  const min1 = Number(v1.attributes.min);
+  const max1 = Number(v1.attributes.max);
+  const min2 = Number(v2.attributes.min);
+
+  const setLive = async (on) => {
+    const s = await appApi('/api/settings');
+    s.general.liveControl = on;
+    assert.equal((await post('/api/settings', s)).ok, true);
+  };
+  // Mode is Off: turning Live control on sets everything to rest.
+  await setLive(true);
+  assert.equal((await appApi('/api/status')).mode, 'live');
+  await until(async () => await fanAt(10) && await numAt(v1, min1) && await numAt(v2, min2), 'rest values set in Home Assistant');
+
+  // Boost now: the fan and the shower valve go up; the bathroom valve is
+  // restricted (its minimum here).
+  await haService('input_button', 'press', { entity_id: 'input_button.smart_ventilation_shower_boost' });
+  await until(async () => await fanAt(75) && await numAt(v1, max1), 'fan 75 and shower valve at its maximum in Home Assistant');
+  assert.ok(await numAt(v2, min2), 'bathroom valve restricted');
+  const st2 = await until(async () => { const s = await appApi('/api/status'); return s.actuators[0].control && s.actuators[0].control.done && s; }, 'the app sees the fan at 75');
+  assert.equal(st2.actuators[0].control.tries, 1, 'sent once');
+
+  // Off: back to rest.
+  await haService('input_select', 'select_option', { entity_id: 'input_select.smart_ventilation_shower_mode', option: 'Off' });
+  await until(async () => await fanAt(10) && await numAt(v1, min1), 'back to rest after Off');
+
+  // Boost again, then turn Live control off: the app sets it back to rest.
+  await haService('input_select', 'select_option', { entity_id: 'input_select.smart_ventilation_shower_mode', option: 'Auto' });
+  await haService('input_button', 'press', { entity_id: 'input_button.smart_ventilation_shower_boost' });
+  await until(async () => await fanAt(75) && await numAt(v1, max1), 'boosting again');
+  await setLive(false);
+  await until(async () => await fanAt(10) && await numAt(v1, min1), 'back to rest after Live control off');
+  assert.equal((await appApi('/api/status')).mode, 'dry-run');
+  const log = await appApi('/api/log');
+  assert.ok(log.some((e) => e.type === 'sent' && e.ok && e.actuator === 'unit' && e.value === 75), 'sent lines in the Activity log');
+  assert.ok(!log.some((e) => e.type === 'sent' && !e.ok), `no failed actions: ${JSON.stringify(log.filter((e) => e.type === 'sent' && !e.ok))}`);
 }

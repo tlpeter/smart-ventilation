@@ -96,6 +96,8 @@ h3 { font-size: 15px; margin: 14px 0 6px; font-weight: 600; }
 .chip.afterrun { background: rgba(var(--rgb-good), 0.16); color: var(--good); font-weight: 600; }
 .chip.fault { background: rgba(var(--rgb-bad), 0.15); color: var(--bad); font-weight: 600; }
 .chip.warn { background: rgba(var(--rgb-warning), 0.16); color: var(--warning); font-weight: 600; }
+.chip.live { background: rgba(var(--rgb-good), 0.16); color: var(--good); font-weight: 600; }
+.card.live-on { border-left: 4px solid var(--good); }
 
 .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 12px 0 6px; }
 .figure { background: var(--surface); border-radius: 12px; padding: 8px 10px; }

@@ -19,7 +19,7 @@ body:
     id: ha_version
     attributes:
       label: Home Assistant version
-      placeholder: "2026.10.2"
+      placeholder: "2026.10.4"
   - type: input
     id: ventilation
     attributes:

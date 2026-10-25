@@ -73,3 +73,14 @@ test('save writes settings.json', () => {
   assert.equal(onDisk.zones[0].name, 'Shower');
   assert.equal(settings.get().zones[0].id, 'shower');
 });
+
+test('live control: off by default, every actuator live unless unticked', () => {
+  const s = settings.normalise({
+    actuators: [{ id: 'unit', type: 'fan' }, { id: 'v', type: 'number', live: false }, { id: 'w', type: 'number', live: 'no' }],
+    general: {},
+  });
+  assert.equal(s.general.liveControl, false);
+  assert.deepEqual(s.actuators.map((a) => a.live), [true, false, true]);
+  assert.equal(settings.normalise({ general: { liveControl: 'yes' } }).general.liveControl, false, 'only true turns it on');
+  assert.equal(settings.normalise({ general: { liveControl: true } }).general.liveControl, true);
+});

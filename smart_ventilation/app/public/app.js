@@ -79,6 +79,11 @@ function topStatus() {
   if (status.night) parts.push('night mode');
   parts.push(`v${esc(status.version)}`);
   $('#top-status').innerHTML = parts.join(' · ');
+  const chip = $('#mode-chip');
+  const live = status.mode === 'live';
+  chip.textContent = live ? 'Live' : 'Dry-run';
+  chip.className = `chip ${live ? 'live' : 'warn'}`;
+  chip.title = live ? 'Live control is on: the app sets the actuators marked live.' : 'Live control is off: the app only shows advice. It never changes your fan or valves.';
 }
 
 async function renderHome() {
@@ -96,15 +101,20 @@ async function renderHome() {
       <ol><li>Add the fan and valves under <b>Actuators</b>.</li>
       <li>Add a zone per room (shower, bathroom) under <b>Zones</b>: its humidity sensor and which actuators it uses.</li>
       <li>Optionally choose reference sensors in other rooms under <b>General</b>.</li></ol>
-      <p class="muted small">This version is a dry-run: it shows what it would do, and never changes your fan or valves.</p>
+      <p class="muted small">At first the app only shows what it would do (dry-run). When you trust it, turn on <b>Live control</b> under General.</p>
       <button class="primary" id="go-setup">Go to Settings</button></div>`;
     $('#go-setup').onclick = () => goTo('settings', 'actuators');
     return;
   }
-  const dry = `<div class="card small"><b>Dry-run.</b> The app follows your sensors and shows what it <i>would</i> set. Nothing is sent to the fan or valves, so your current automations keep working.</div>`;
+  const live = status.mode === 'live';
+  const banner = live
+    ? `<div class="card small live-on"><b>Live control is on.</b> The app sets the actuators marked live. Your own automations for these fans and valves should be off, or they work against each other.</div>`
+    : `<div class="card small"><b>Dry-run.</b> The app follows your sensors and shows what it <i>would</i> set. Nothing is sent to the fan or valves, so your current automations keep working. <a href="#" id="go-live">Live control</a> is under Settings › General.</div>`;
   const zones = status.zones.map(zoneCard).join('');
-  const acts = `<div class="card"><h2>Actuators: advice</h2>${status.actuators.map(actRow).join('') || '<div class="muted">No actuators yet.</div>'}</div>`;
-  el.innerHTML = dry + zones + acts;
+  const acts = `<div class="card"><h2>${live ? 'Actuators' : 'Actuators: advice'}</h2>${status.actuators.map(actRow).join('') || '<div class="muted">No actuators yet.</div>'}</div>`;
+  el.innerHTML = banner + zones + acts;
+  const goLive = $('#go-live');
+  if (goLive) goLive.onclick = (e) => { e.preventDefault(); goTo('settings', 'general'); };
   for (const z of status.zones) drawChart(z.id);
 }
 
@@ -133,16 +143,29 @@ function zoneCard(z) {
   </div>`;
 }
 
+// What Live control did with this actuator, in one short line.
+function liveLine(a) {
+  const c = a.control;
+  if (!c) return 'Live · waiting for the first value';
+  if (c.gaveUp) return `<span style="color:var(--bad)">Live · the device did not follow after ${c.tries} tries. The app tries again at the next change.</span>`;
+  if (c.done) return c.tries ? '<span class="ok">Live · set ✓</span>' : '<span class="ok">Live · already at this value</span>';
+  if (c.error) return `<span style="color:var(--bad)">Live · could not set: ${esc(c.error)}</span> (try ${c.tries} of ${status.maxTries})`;
+  return `Live · sent, waiting for the device (try ${c.tries} of ${status.maxTries})`;
+}
+
 function actRow(a) {
   const unit = a.unit;
   const cmd = a.command ? `<code>${esc(a.command.service)} ${esc(JSON.stringify(a.command.data))}</code>` : '';
   const same = a.current !== null && String(a.current) === String(a.advised);
+  const live = status.mode === 'live';
+  const foot = a.live ? `<div class="small" style="margin-top:4px">${liveLine(a)}</div>`
+    : cmd ? `<div class="small" style="margin-top:4px">${live ? 'Not live (advice only). Would send: ' : 'Would send: '}${cmd}</div>` : '';
   return `<div class="act">
     <div class="row wrap"><b>${esc(a.name)}</b><span class="muted small">${esc(a.entity || 'no entity')}</span><span class="spacer"></span>
-      <span class="small">now ${fmt(a.current, unit)} → advice <b>${fmt(a.advised, unit)}</b></span>
+      <span class="small">now ${fmt(a.current, unit)} → ${a.live ? 'target' : 'advice'} <b>${fmt(a.advised, unit)}</b></span>
       ${a.level ? `<span class="chip ${a.level === 'boost' ? 'boost' : a.level === 'afterrun' ? 'afterrun' : ''}">${LEVEL_LABEL[a.level] || a.level}</span>` : ''}</div>
-    <div class="muted small">${esc(a.why)}${same ? ' · already at this value' : ''}</div>
-    ${cmd ? `<div class="small" style="margin-top:4px">Would send: ${cmd}</div>` : ''}
+    <div class="muted small">${esc(a.why)}${same && !a.live ? ' · already at this value' : ''}</div>
+    ${foot}
   </div>`;
 }
 
@@ -254,9 +277,18 @@ async function renderActivity() {
       return `<div class="log-item"><div class="row wrap"><b>${esc(e.name)}</b><span class="small">would be set to <b>${esc(e.value)}</b> (${LEVEL_LABEL[e.level] || esc(e.level)})</span><span class="spacer"></span><span class="muted small">${when}</span></div>
         <div class="muted small">${esc(e.why)}</div></div>`;
     }
+    if (e.type === 'sent') {
+      const what = e.ok ? `set to <b>${esc(e.value)}</b>` : `<span style="color:var(--bad)">could not set <b>${esc(e.value)}</b></span>`;
+      return `<div class="log-item"><div class="row wrap"><span class="chip live">Live</span><b>${esc(e.name)}</b><span class="small">${what} (${LEVEL_LABEL[e.level] || esc(e.level)})${e.tries > 1 ? `, try ${e.tries}` : ''}</span><span class="spacer"></span><span class="muted small">${when}</span></div>
+        <div class="muted small">${esc(e.why)}${e.ok ? '' : ` · ${esc(e.error)}`}</div></div>`;
+    }
+    if (e.type === 'gave-up') {
+      return `<div class="log-item"><div class="row wrap"><span class="chip fault">Live</span><b>${esc(e.name)}</b><span class="spacer"></span><span class="muted small">${when}</span></div>
+        <div class="small">${esc(e.reason)}</div></div>`;
+    }
     return `<div class="log-item"><div class="row"><span class="muted small">${esc(e.reason || e.type)}</span><span class="spacer"></span><span class="muted small">${when}</span></div></div>`;
   }).join('');
-  el.innerHTML = `<div class="card"><h2>Activity</h2><p class="muted small">Zone changes and the values the app would set (dry-run). Newest first.</p>${items}</div>`;
+  el.innerHTML = `<div class="card"><h2>Activity</h2><p class="muted small">Zone changes, what the app set (Live) and what it would set (advice). Newest first.</p>${items}</div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -476,6 +508,8 @@ function actuatorsView() {
         ${levelInput(a, 'restricted', 'While another zone boosts', true)}
         ${a.type === 'number' || (a.type === 'fan' && a.fanMode !== 'preset') ? levelInput(a, 'nightMax', 'Night maximum', true) : ''}
       </div>
+      <label class="check"><input type="checkbox" data-k="live" ${a.live !== false ? 'checked' : ''}>Live: the app may set this one when Live control is on</label>
+      <div class="hint">${draft.general.liveControl ? 'Live control is on (General).' : 'Live control is off (General): the app only shows advice for now.'} Untick to keep this one on advice only.</div>
       ${a.type !== 'fan' ? '<div class="hint">"While another zone boosts": close this valve partly (for example 0–25%) so the air comes from the wet room. Leave it empty to keep it at rest.</div>' : '<div class="hint">For a fan, leave "While another zone boosts" empty: a fan shared by more zones simply follows the highest demand.</div>'}
     </div>`;
   }).join('');
@@ -485,7 +519,7 @@ function actuatorsView() {
 
 function generalView() {
   const g = draft.general;
-  return `<div class="card"><h2>Reference sensors</h2>
+  return `${liveCard()}<div class="card"><h2>Reference sensors</h2>
       <p class="muted small">Optional. Humidity sensors in other rooms. The app uses their median to ignore weather (the whole house getting humid) and to know when the bathroom is back to normal.</p>
       <div class="refs">${g.references.map((r, i) => `<span class="chip">${esc((meta(r) || {}).name || r)} <button data-act="del-ref" data-i="${i}" aria-label="Remove">✕</button></span>`).join('') || '<span class="muted small">None chosen.</span>'}</div>
       <div class="row"><div style="flex:1">${picker('reference', '', 'id="ref-new"', 'Search humidity sensor…')}</div><button class="secondary" data-act="add-ref">Add</button></div>
@@ -501,6 +535,18 @@ function generalView() {
     <div class="card"><h2>Sensors</h2>
       ${num('Sensor timeout (min)', 'sensorTimeoutMin', g.sensorTimeoutMin, 5, 720, 5, 'No reading for this long counts as a sensor problem: the zone goes back to rest.').replace('data-k=', 'data-g=')}
     </div>`;
+}
+
+// Live control: off by default; then the app only shows advice.
+function liveCard() {
+  const g = draft.general;
+  const n = draft.actuators.filter((a) => a.entity && a.live !== false).length;
+  return `<div class="card${g.liveControl ? ' live-on' : ''}"><h2>Live control</h2>
+    <label class="check"><input type="checkbox" data-g="liveControl" ${g.liveControl ? 'checked' : ''}>Let the app set the fan and valves</label>
+    <p class="muted small">Off: the app only shows what it would set (dry-run). On: it sets the actuators marked <b>Live</b> (${n} now): when a shower starts, during afterrun and back to rest. It only sends a value when it changes, so a change by hand stays until the next shower. If a device does not follow, it tries 3 times and then stops and notes it in Activity.</p>
+    <p class="small"><b>Before you turn it on:</b> turn off your own automations or blueprints for these fans and valves, or they work against each other.</p>
+    <p class="muted small">Turning it off, unticking Live on an actuator, or stopping the app (for example for an update) sets what the app moved back to rest.</p>
+  </div>`;
 }
 
 // Dashboard controls: helpers in a YAML package that the app writes.
@@ -591,7 +637,7 @@ function bind() {
   $$('[data-g]', el).forEach((inp) => inp.addEventListener('change', () => {
     draft.general[inp.dataset.g] = readInput(inp);
     markDirty();
-    if (inp.dataset.g === 'dashboardHelpers') renderSettings();
+    if (['dashboardHelpers', 'liveControl'].includes(inp.dataset.g)) renderSettings();
   }));
   const addZone = $('[data-act="add-zone"]', el);
   if (addZone) addZone.onclick = () => {

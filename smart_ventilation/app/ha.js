@@ -4,10 +4,12 @@
 // Connects through the Supervisor and lets the app read states, follow state
 // changes and read recent history.
 //
-// SAFETY: this version only reads. It has no way to call an action, so it
-// cannot change a fan, a valve or anything else. The one write is the state
-// of the app's own sensors (sensor.smart_ventilation_*), and only when
-// "Publish sensors" is on.
+// SAFETY: the app mostly reads. It writes in two ways only:
+// - the state of its own sensors (sensor.smart_ventilation_*), only when
+//   "Publish sensors" is on;
+// - with Live control on: one of six actions that set a fan, valve, select
+//   or switch (ACTIONS below), and only on an entity that server.js allows
+//   (an actuator chosen in the app). Everything else is refused here.
 
 const WebSocket = require('ws');
 const { options } = require('./options');
@@ -50,15 +52,24 @@ const READ_ONLY_COMMANDS = new Set([
   'history/history_during_period',
 ]);
 
-function call(message, timeoutMs = 20000) {
+// SAFETY: the only actions the app may call (Live control), each on its own
+// kind of entity.
+const ACTIONS = new Set([
+  'fan.set_percentage',
+  'fan.set_preset_mode',
+  'number.set_value',
+  'select.select_option',
+  'switch.turn_on',
+  'switch.turn_off',
+]);
+
+// Set by server.js: may the app change this entity now? Nothing is allowed
+// until it is set.
+let actionPolicy = () => false;
+function setActionPolicy(fn) { actionPolicy = fn; }
+
+function send(message, timeoutMs) {
   return new Promise((resolve, reject) => {
-    const ok = READ_ONLY_COMMANDS.has(message.type) &&
-      (message.type !== 'subscribe_events' || message.event_type === 'state_changed');
-    if (!ok) {
-      warn('Refused command', message.type, '- the app only reads');
-      reject(new Error(`Command ${message.type} is not allowed: the app only reads`));
-      return;
-    }
     if (!state.connected) { reject(new Error('Not connected to Home Assistant')); return; }
     const id = nextId++;
     pending.set(id, { resolve, reject });
@@ -69,6 +80,33 @@ function call(message, timeoutMs = 20000) {
         reject(new Error('Timeout waiting for Home Assistant'));
       }
     }, timeoutMs);
+  });
+}
+
+// Call one action on one entity: { service: 'fan.set_percentage', data, target: { entity_id } }.
+async function callAction(command, timeoutMs = 10000) {
+  const service = String((command && command.service) || '');
+  const entity = command && command.target && command.target.entity_id;
+  const [domain, name] = service.split('.');
+  if (!ACTIONS.has(service)) throw new Error(`Action ${service} is not allowed`);
+  if (typeof entity !== 'string' || entity.split('.')[0] !== domain) throw new Error(`${service} needs one ${domain} entity`);
+  if (!actionPolicy(entity)) {
+    warn('Refused action', service, 'on', entity, '- not allowed now');
+    throw new Error(`${entity} may not be changed now`);
+  }
+  return send({ type: 'call_service', domain, service: name, service_data: (command && command.data) || {}, target: { entity_id: entity } }, timeoutMs);
+}
+
+function call(message, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const ok = READ_ONLY_COMMANDS.has(message.type) &&
+      (message.type !== 'subscribe_events' || message.event_type === 'state_changed');
+    if (!ok) {
+      warn('Refused command', message.type, '- not a read command');
+      reject(new Error(`Command ${message.type} is not allowed here: only reads go through call()`));
+      return;
+    }
+    send(message, timeoutMs).then(resolve, reject);
   });
 }
 
@@ -172,4 +210,4 @@ function connect() {
   });
 }
 
-module.exports = { state, connect, getStates, getHistory, setState, onConnect, onStateChanged, log, debug, warn, recentLog, OWN_SENSOR };
+module.exports = { state, connect, getStates, callAction, setActionPolicy, ACTIONS, getHistory, setState, onConnect, onStateChanged, log, debug, warn, recentLog, OWN_SENSOR };

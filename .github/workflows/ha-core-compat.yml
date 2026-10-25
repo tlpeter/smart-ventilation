@@ -21,11 +21,11 @@ permissions:
   contents: read
 
 env:
-  HA_CORE_VERSION: '2026.10.2'
+  HA_CORE_VERSION: '2026.10.4'
 
 jobs:
   compatibility:
-    name: Core 2026.10.2
+    name: Core 2026.10.4
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

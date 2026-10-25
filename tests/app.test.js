@@ -1,7 +1,8 @@
 'use strict';
 
 // The whole app against a fake Home Assistant: set-up through the API, a
-// simulated shower, and a check that nothing is ever sent to a device.
+// simulated shower, and a check that nothing is ever sent to a device while
+// Live control is off (the default). Live control: tests/live.test.js.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -86,7 +87,7 @@ test('the app against a fake Home Assistant', async (t) => {
   await t.test('the page and its files are served', async () => {
     for (const f of ['/', '/app.js', '/styles.css', '/logo.svg', '/unsaved.js']) assert.equal((await fetch(base + f)).status, 200, f);
     const st = await get('/api/status');
-    assert.equal(st.mode, 'dry-run');
+    assert.equal(st.mode, 'dry-run', 'Live control is off by default');
     assert.equal(st.configured, false);
   });
 
