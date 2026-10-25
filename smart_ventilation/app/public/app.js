@@ -115,11 +115,13 @@ async function renderHome() {
   el.innerHTML = banner + zones + acts;
   const goLive = $('#go-live');
   if (goLive) goLive.onclick = (e) => { e.preventDefault(); goTo('settings', 'general'); };
+  $$('[data-go-activity]', el).forEach((a) => { a.onclick = (ev) => { ev.preventDefault(); goTo('activity'); }; });
   for (const z of status.zones) drawChart(z.id);
 }
 
 function zoneCard(z) {
   const f = z.figures;
+  const e = z.entities || {};
   const icon = z.state === 'boost' ? '<span class="spin">✻</span>' : z.state === 'fault' ? '!' : '✻';
   const since = z.state === 'boost' && z.boostStart ? `boosting for ${ago(z.boostStart)}` : `since ${clock(z.since)}`;
   return `<div class="card">
@@ -129,12 +131,12 @@ function zoneCard(z) {
       <span class="chip ${z.state}">${STATE_LABEL[z.state] || z.state}</span>
     </div>
     <div class="figures">
-      <div class="figure"><span>Humidity</span><b>${fmt(f.humidity, '%')}</b></div>
-      <div class="figure"><span>Baseline${f.baselineFrozen ? ' (frozen)' : ''}</span><b>${fmt(f.baseline, '%')}</b></div>
-      <div class="figure"><span>Rise in window</span><b>${f.rise === null ? '–' : (f.rise >= 0 ? '+' : '') + f.rise}</b></div>
-      ${f.reference !== null ? `<div class="figure"><span>Reference</span><b>${fmt(f.reference, '%')}</b></div>` : ''}
-      ${f.temperature !== null ? `<div class="figure"><span>Temperature</span><b>${fmt(f.temperature, ' °C')}</b></div>` : ''}
-      <div class="figure"><span>Showers today</span><b>${z.showersToday}</b></div>
+      ${tile('Humidity', fmt(f.humidity, '%'), [e.humidity])}
+      ${tile(`Baseline${f.baselineFrozen ? ' (frozen)' : ''}`, fmt(f.baseline, '%'), [e.humidity])}
+      ${tile('Rise in window', f.rise === null ? '–' : (f.rise >= 0 ? '+' : '') + f.rise, [e.humidity])}
+      ${f.reference !== null ? tile('Reference', fmt(f.reference, '%'), e.references) : ''}
+      ${f.temperature !== null ? tile('Temperature', fmt(f.temperature, ' °C'), [e.temperature]) : ''}
+      <a class="figure link" href="#" data-go-activity title="See the Activity log"><span>Showers today</span><b>${z.showersToday}</b></a>
     </div>
     ${devicesRow(z)}
     <div class="muted small">${since}</div>
@@ -146,15 +148,32 @@ function zoneCard(z) {
 
 // The zone's own fan and valves: the position now, and where the app sets it
 // (or would set it) when that is different.
+// Home Assistant's history page for these entities, last 24 hours. The app
+// runs in a frame inside Home Assistant (same address), so the link opens
+// the history in the Home Assistant window itself.
+function historyUrl(ids) {
+  const list = (ids || []).filter(Boolean);
+  if (!list.length) return null;
+  const start = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  return `/history?entity_id=${list.map(encodeURIComponent).join(',')}&start_date=${encodeURIComponent(start)}`;
+}
+
+// One tile. With entities it is a link to their history in Home Assistant.
+function tile(label, value, ids, extra = '', cls = '') {
+  const url = historyUrl(ids);
+  const inner = `<span>${esc(label)}</span><b>${value}</b>${extra ? `<span>${esc(extra)}</span>` : ''}`;
+  if (!url) return `<div class="figure ${cls}">${inner}</div>`;
+  return `<a class="figure link ${cls}" href="${esc(url)}" target="_top" title="History in Home Assistant">${inner}</a>`;
+}
+
 function devicesRow(z) {
   const list = z.devices || [];
   if (!list.length) return '<div class="muted small" style="margin:4px 0">No fan or valve linked to this zone. Link them under Settings › Zones.</div>';
   const target = status.mode === 'live' ? 'to' : 'advice';
   return `<div class="figures devices">${list.map((d) => {
     const moving = d.advised !== null && String(d.current) !== String(d.advised);
-    return `<div class="figure device ${d.level === 'boost' ? 'boost' : d.level === 'afterrun' ? 'afterrun' : ''}">
-      <span>${esc(d.name)}</span><b>${fmt(d.current, d.unit)}</b>
-      ${moving ? `<span>${target} ${fmt(d.advised, d.unit)}</span>` : ''}</div>`;
+    const cls = `device ${d.level === 'boost' ? 'boost' : d.level === 'afterrun' ? 'afterrun' : ''}`;
+    return tile(d.name, fmt(d.current, d.unit), [d.entity], moving ? `${target} ${fmt(d.advised, d.unit)}` : '', cls);
   }).join('')}</div>`;
 }
 

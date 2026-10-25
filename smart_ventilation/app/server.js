@@ -457,8 +457,10 @@ function status() {
     const isShower = (e) => e.trigger ? e.trigger === 'shower' : /^Shower detected/.test(e.reason || '');
     const showersToday = logEntries.filter((e) => e.type === 'zone' && e.zone === z.id && e.to === 'boost' && e.from === 'idle' && isShower(e) && localDay(e.t) === today).length;
     return { id: z.id, name: z.name, enabled: z.enabled, mode: st.mode || 'auto', state: z.enabled ? st.state : 'off', since: st.since, reason: z.enabled ? st.reason : 'Zone is switched off', boostStart: st.boostStart, figures: fig, showersToday, actuators: z.actuators,
+      // The entities behind the tiles, for their history in Home Assistant.
+      entities: { humidity: z.humidity, temperature: z.temperature, references: s.general.references },
       // The zone's own fan and valves, for its card on Home.
-      devices: z.actuators.map((id) => acts.find((a) => a.id === id)).filter(Boolean).map((a) => ({ id: a.id, name: a.name, type: a.type, unit: a.unit, current: a.current, advised: a.advised, level: a.level, live: a.live })) };
+      devices: z.actuators.map((id) => acts.find((a) => a.id === id)).filter(Boolean).map((a) => ({ id: a.id, name: a.name, type: a.type, entity: a.entity, unit: a.unit, current: a.current, advised: a.advised, level: a.level, live: a.live })) };
   });
   return {
     version: APP_VERSION,

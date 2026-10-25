@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.6-dev
+
+- Home: tap a tile in a zone card to see its history in Home Assistant (last 24 hours). Humidity, baseline and rise open the humidity sensor, reference the reference sensors, temperature the temperature sensor, the fan and valves their own entity. Showers today opens Activity. A small ↗ shows which tiles open Home Assistant (always on a phone, on hover on a computer). (#8)
+- Tests: the entities behind the tiles in the status of the app.
+
 ## 0.3.5-dev
 
 - Settings: a warning when one valve is ticked in more than one zone, for example the shower valve under the bathroom too. It shows under the zone as soon as you tick it, and after saving ("Saved, with a warning"). Saving still works. A shared fan gets no warning. (#7)

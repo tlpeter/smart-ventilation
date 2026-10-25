@@ -173,6 +173,11 @@ test('the app against a fake Home Assistant', async (t) => {
     assert.equal(dev(0).v_bath, undefined, 'the bathroom valve is not in the shower card');
     assert.equal(dev(1).v_bath.advised, 10);
     assert.equal(dev(1).v_bath.level, 'restricted');
+    // The entities behind the tiles, for their history in Home Assistant (issue #8).
+    assert.deepEqual(st.zones[0].entities, { humidity: 'sensor.shower_humidity', temperature: 'sensor.shower_temperature', references: ['sensor.hall_humidity'] });
+    assert.equal(st.zones[1].entities.temperature, null);
+    assert.equal(dev(0).v_shower.entity, 'number.shower_valve_capacity');
+    assert.equal(dev(0).unit.entity, 'fan.open_air_mini');
 
     const chart = await get('/api/chart?zone=shower');
     assert.ok(chart.humidity.length >= 3);
