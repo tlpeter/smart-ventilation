@@ -432,6 +432,10 @@ function status() {
   const s = settings.get();
   const t = now();
   const today = localDay(t);
+  const acts = s.actuators.map((a) => {
+    const d = advice[a.id] || {};
+    return { id: a.id, name: a.name, type: a.type, entity: a.entity, unit: actuators.isNumeric(a) ? '%' : '', advised: d.value ?? null, level: d.level || null, why: d.why || '', night: !!d.night, command: d.command || null, current: actuators.currentValue(a, entityStates.get(a.entity)), live: isLive(a, s), control: isLive(a, s) ? controlMemory[a.id] || null : null };
+  });
   const zones = s.zones.map((z) => {
     const st = zoneStates[z.id] || engine.newZoneState(t);
     const fig = engine.zoneFigures(z, st, zoneInput(z, t));
@@ -440,11 +444,9 @@ function status() {
     // trigger: their reason tells.
     const isShower = (e) => e.trigger ? e.trigger === 'shower' : /^Shower detected/.test(e.reason || '');
     const showersToday = logEntries.filter((e) => e.type === 'zone' && e.zone === z.id && e.to === 'boost' && e.from === 'idle' && isShower(e) && localDay(e.t) === today).length;
-    return { id: z.id, name: z.name, enabled: z.enabled, mode: st.mode || 'auto', state: z.enabled ? st.state : 'off', since: st.since, reason: z.enabled ? st.reason : 'Zone is switched off', boostStart: st.boostStart, figures: fig, showersToday, actuators: z.actuators };
-  });
-  const acts = s.actuators.map((a) => {
-    const d = advice[a.id] || {};
-    return { id: a.id, name: a.name, type: a.type, entity: a.entity, unit: actuators.isNumeric(a) ? '%' : '', advised: d.value ?? null, level: d.level || null, why: d.why || '', night: !!d.night, command: d.command || null, current: actuators.currentValue(a, entityStates.get(a.entity)), live: isLive(a, s), control: isLive(a, s) ? controlMemory[a.id] || null : null };
+    return { id: z.id, name: z.name, enabled: z.enabled, mode: st.mode || 'auto', state: z.enabled ? st.state : 'off', since: st.since, reason: z.enabled ? st.reason : 'Zone is switched off', boostStart: st.boostStart, figures: fig, showersToday, actuators: z.actuators,
+      // The zone's own fan and valves, for its card on Home.
+      devices: z.actuators.map((id) => acts.find((a) => a.id === id)).filter(Boolean).map((a) => ({ id: a.id, name: a.name, type: a.type, unit: a.unit, current: a.current, advised: a.advised, level: a.level, live: a.live })) };
   });
   return {
     version: APP_VERSION,

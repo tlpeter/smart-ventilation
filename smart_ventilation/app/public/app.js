@@ -136,11 +136,26 @@ function zoneCard(z) {
       ${f.temperature !== null ? `<div class="figure"><span>Temperature</span><b>${fmt(f.temperature, ' °C')}</b></div>` : ''}
       <div class="figure"><span>Showers today</span><b>${z.showersToday}</b></div>
     </div>
+    ${devicesRow(z)}
     <div class="muted small">${since}</div>
     <div class="chart-head"><span class="small muted">${RANGE_TITLE[chartHours]}</span>${rangeButtons()}</div>
     <svg class="chart" id="chart-${esc(z.id)}" viewBox="0 0 600 170" role="img" aria-label="Humidity, ${RANGE_TITLE[chartHours].toLowerCase()}"></svg>
     <div class="legend"><span><i style="background:var(--accent)"></i>humidity</span><span><i style="background:var(--muted)"></i>reference</span>${chartHours === 3 ? '<span><i style="background:var(--warning)"></i>baseline</span>' : ''}<span><i style="background:rgba(var(--rgb-accent),.3);height:8px"></i>boost</span><span><i style="background:rgba(var(--rgb-good),.3);height:8px"></i>afterrun</span></div>
   </div>`;
+}
+
+// The zone's own fan and valves: the position now, and where the app sets it
+// (or would set it) when that is different.
+function devicesRow(z) {
+  const list = z.devices || [];
+  if (!list.length) return '<div class="muted small" style="margin:4px 0">No fan or valve linked to this zone. Link them under Settings › Zones.</div>';
+  const target = status.mode === 'live' ? 'to' : 'advice';
+  return `<div class="figures devices">${list.map((d) => {
+    const moving = d.advised !== null && String(d.current) !== String(d.advised);
+    return `<div class="figure device ${d.level === 'boost' ? 'boost' : d.level === 'afterrun' ? 'afterrun' : ''}">
+      <span>${esc(d.name)}</span><b>${fmt(d.current, d.unit)}</b>
+      ${moving ? `<span>${target} ${fmt(d.advised, d.unit)}</span>` : ''}</div>`;
+  }).join('')}</div>`;
 }
 
 // What Live control did with this actuator, in one short line.

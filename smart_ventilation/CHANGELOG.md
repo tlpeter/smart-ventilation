@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2-dev
+
+- Home: each zone card now shows its own fan and valves, with the position now. When the app is moving one (or would, in dry-run), it also shows where to. A boosting valve is blue, afterrun green. A zone without a linked fan or valve says so. (#4)
+- Tests: the zone's own actuators in the status of the app.
+
 ## 0.3.1-dev
 
 - Fix: in a room whose normal humidity is above the absolute trigger (for example 87 % with a trigger of 85 %), the boost stopped "back to normal" and the safety net started a new one 30 seconds later, all day long. Now the safety net then waits until the room is clearly drier, the same as after the maximum boost time. A real shower (a fast rise) still starts a boost.

@@ -162,6 +162,16 @@ test('the app against a fake Home Assistant', async (t) => {
     assert.deepEqual(adv.unit.command, { service: 'fan.set_percentage', data: { percentage: 75 }, target: { entity_id: 'fan.open_air_mini' } });
     assert.equal(adv.v_shower.advised, 100);
     assert.equal(adv.v_bath.advised, 10, 'the other valve is restricted');
+    // Each zone card on Home shows its own fan and valves (issue #4).
+    const dev = (zi) => Object.fromEntries(st.zones[zi].devices.map((d) => [d.id, d]));
+    assert.deepEqual(Object.keys(dev(0)).sort(), [...SETUP.zones[0].actuators].sort());
+    assert.equal(dev(0).v_shower.advised, 100);
+    assert.equal(dev(0).v_shower.level, 'boost');
+    assert.equal(dev(0).v_shower.unit, '%');
+    assert.ok('current' in dev(0).v_shower);
+    assert.equal(dev(0).v_bath, undefined, 'the bathroom valve is not in the shower card');
+    assert.equal(dev(1).v_bath.advised, 10);
+    assert.equal(dev(1).v_bath.level, 'restricted');
 
     const chart = await get('/api/chart?zone=shower');
     assert.ok(chart.humidity.length >= 3);
