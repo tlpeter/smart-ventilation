@@ -77,8 +77,13 @@ async function until(fn, what, tries = 60, ms = 500) {
   throw new Error(`Timed out waiting for: ${what}`);
 }
 
-test.after(() => {
-  if (app) app.kill();
+test.after(async () => {
+  // The app saves its state when it stops: wait for that before cleaning up.
+  if (app && app.exitCode === null && app.signalCode === null) {
+    const exited = new Promise((r) => app.once('exit', r));
+    app.kill();
+    await Promise.race([exited, sleep(8000)]);
+  }
   if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
