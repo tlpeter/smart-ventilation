@@ -84,3 +84,9 @@ test('live control: off by default, every actuator live unless unticked', () => 
   assert.equal(settings.normalise({ general: { liveControl: 'yes' } }).general.liveControl, false, 'only true turns it on');
   assert.equal(settings.normalise({ general: { liveControl: true } }).general.liveControl, true);
 });
+
+test('"when more zones boost": kept as a number, empty when not set', () => {
+  const s = settings.normalise({ actuators: [{ id: 'unit', type: 'fan', multiBoost: '80' }, { id: 'v', type: 'number' }] });
+  assert.equal(s.actuators[0].multiBoost, 80);
+  assert.equal(s.actuators[1].multiBoost, '');
+});

@@ -46,6 +46,30 @@ test('both zones boost: both valves open', () => {
   assert.equal(d.v_bath.value, 100);
 });
 
+test('more zones boost: the shared fan goes to its "more zones" value', () => {
+  const f = { ...fan, multiBoost: 80 };
+  const both = act.decide([f, vShower, vBath], zones, { shower: 'boost', bathroom: 'boost' }, false);
+  assert.equal(both.fan.value, 80);
+  assert.equal(both.fan.level, 'boost');
+  assert.match(both.fan.why, /Shower, Bathroom: boost \(more zones\)/);
+  assert.equal(both.v_shower.value, 100, 'valves keep their own boost');
+  assert.equal(act.decide([f], zones, { shower: 'boost', bathroom: 'idle' }, false).fan.value, 75, 'one zone: boost');
+  assert.equal(act.decide([f], zones, { shower: 'boost', bathroom: 'afterrun' }, false).fan.value, 75, 'boost + afterrun: boost');
+  assert.equal(act.decide([fan], zones, { shower: 'boost', bathroom: 'boost' }, false).fan.value, 75, 'empty: boost, as before');
+  assert.equal(act.decide([f], zones, { shower: 'boost', bathroom: 'boost' }, true).fan.value, 40, 'the night maximum still caps it');
+  const off = [{ ...zones[0] }, { ...zones[1], enabled: false }];
+  assert.equal(act.decide([f], off, { shower: 'boost', bathroom: 'boost' }, false).fan.value, 75, 'a zone that is off does not count');
+});
+
+test('more zones boost: checked against the entity and boost', () => {
+  const meta = act.describeEntity({ entity_id: 'fan.open_air_mini', state: 'on', attributes: { percentage: 10, percentage_step: 1, supported_features: 49 } });
+  const ok = { ...fan, nightMax: '', multiBoost: 80 };
+  assert.deepEqual(act.validateActuator(ok, meta), []);
+  assert.ok(act.validateActuator({ ...ok, multiBoost: 70 }, meta).some((e) => /lower than boost/.test(e)));
+  assert.ok(act.validateActuator({ ...ok, multiBoost: 120 }, meta).some((e) => /outside 0–100/.test(e)));
+  assert.equal(act.hasMulti({ ...ok, fanMode: 'preset' }), false, 'not for a preset fan');
+});
+
 test('a fault counts as rest', () => {
   const d = act.decide(all, zones, { shower: 'fault', bathroom: 'idle' }, false);
   assert.equal(d.fan.value, 10);

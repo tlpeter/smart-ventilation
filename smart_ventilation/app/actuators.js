@@ -2,7 +2,8 @@
 
 // Actuators: the things that move air (a fan) or steer where it comes from
 // (a valve). Each actuator has a value per level: idle, boost, afterrun,
-// restricted (while another zone boosts) and an optional night maximum.
+// restricted (while another zone boosts), an optional "more zones boost"
+// value (numbers and fan percentage) and an optional night maximum.
 //
 // This module works out the value every actuator should have, and the Home
 // Assistant action that sets it. With Live control off the app only shows
@@ -64,11 +65,13 @@ function validateActuator(act, meta) {
     if (act.type === 'fan' && meta.percentage === false) errors.push(`${label}: this fan does not support a speed percentage`);
     const lv = [...levels];
     if (act.nightMax !== null && act.nightMax !== undefined && act.nightMax !== '') lv.push('nightMax');
+    if (hasMulti(act)) lv.push('multiBoost');
     for (const l of lv) {
       const v = Number(act[l]);
       if (act[l] === '' || act[l] === null || act[l] === undefined || !Number.isFinite(v)) errors.push(`${label}: ${l} needs a number`);
       else if (v < meta.min || v > meta.max) errors.push(`${label}: ${l} ${v} is outside ${meta.min}–${meta.max}`);
     }
+    if (hasMulti(act) && Number(act.multiBoost) < Number(act.boost)) errors.push(`${label}: "when more zones boost" (${act.multiBoost}) is lower than boost (${act.boost})`);
   } else if (act.type === 'select') {
     for (const l of levels) {
       if (!meta.options.includes(act[l])) errors.push(`${label}: "${act[l]}" is not an option of ${act.entity} (${l})`);
@@ -79,6 +82,11 @@ function validateActuator(act, meta) {
     }
   }
   return errors;
+}
+
+// Is the "when more zones boost" value set? Only for numeric actuators.
+function hasMulti(act) {
+  return isNumeric(act) && act.multiBoost !== null && act.multiBoost !== undefined && act.multiBoost !== '';
 }
 
 function valueOf(act, level) {
@@ -111,6 +119,12 @@ function decide(actuators, zones, zoneStates, isNight) {
       value = best.value;
       why = `${best.zone.name}: ${best.level}`;
       if (demands.length > 1) why += ` (highest of ${demands.map((d) => d.zone.name).join(', ')})`;
+      // Two or more of its zones boost at the same time: the higher value.
+      const boosting = demands.filter((d) => d.level === 'boost');
+      if (boosting.length > 1 && hasMulti(act) && Number(act.multiBoost) > value) {
+        value = Number(act.multiBoost);
+        why = `${boosting.map((d) => d.zone.name).join(', ')}: boost (more zones)`;
+      }
     } else if (act.restricted !== null && act.restricted !== undefined && act.restricted !== '' && mine.length) {
       const others = activeZones.filter((z) => !mine.includes(z));
       if (others.length) {
@@ -159,4 +173,4 @@ function currentValue(act, s) {
   return null;
 }
 
-module.exports = { TYPES, describeEntity, validateActuator, decide, commandFor, currentValue, isNumeric, valueOf };
+module.exports = { TYPES, describeEntity, validateActuator, decide, commandFor, currentValue, isNumeric, valueOf, hasMulti };

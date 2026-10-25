@@ -521,11 +521,12 @@ function actuatorsView() {
         ${levelInput(a, 'boost', 'Boost')}
         ${levelInput(a, 'afterrun', 'Afterrun')}
         ${levelInput(a, 'restricted', 'While another zone boosts', true)}
-        ${a.type === 'number' || (a.type === 'fan' && a.fanMode !== 'preset') ? levelInput(a, 'nightMax', 'Night maximum', true) : ''}
+        ${a.type === 'number' || (a.type === 'fan' && a.fanMode !== 'preset') ? levelInput(a, 'multiBoost', 'When more zones boost', true) + levelInput(a, 'nightMax', 'Night maximum', true) : ''}
       </div>
       <label class="check"><input type="checkbox" data-k="live" ${a.live !== false ? 'checked' : ''}>Live: the app may set this one when Live control is on</label>
       <div class="hint">${draft.general.liveControl ? 'Live control is on (General).' : 'Live control is off (General): the app only shows advice for now.'} Untick to keep this one on advice only.</div>
       ${a.type !== 'fan' ? '<div class="hint">"While another zone boosts": close this valve partly (for example 0–25%) so the air comes from the wet room. Leave it empty to keep it at rest.</div>' : '<div class="hint">For a fan, leave "While another zone boosts" empty: a fan shared by more zones simply follows the highest demand.</div>'}
+      ${a.type === 'number' || (a.type === 'fan' && a.fanMode !== 'preset') ? '<div class="hint">"When more zones boost" (optional, meant for a shared fan): the value when two or more of its zones boost at the same time, for example 80 while one zone alone uses 75. Not lower than boost. Leave it empty to use boost.</div>' : ''}
     </div>`;
   }).join('');
   return `${list || '<div class="card muted">No actuators yet. Add the ventilation unit (a fan) and a valve per room.</div>'}
@@ -633,11 +634,11 @@ function bind() {
       if (k === 'type') {
         a.entity = null;
         a.fanMode = 'percentage';
-        for (const l of ['idle', 'boost', 'afterrun', 'restricted', 'nightMax']) a[l] = '';
+        for (const l of ['idle', 'boost', 'afterrun', 'restricted', 'nightMax', 'multiBoost']) a[l] = '';
         if (a.type === 'switch') { a.idle = 'off'; a.boost = 'on'; a.afterrun = 'on'; }
       }
       if (k === 'entity' && a.entity === '') a.entity = null;
-      if (k === 'fanMode') for (const l of ['idle', 'boost', 'afterrun', 'restricted', 'nightMax']) a[l] = '';
+      if (k === 'fanMode') for (const l of ['idle', 'boost', 'afterrun', 'restricted', 'nightMax', 'multiBoost']) a[l] = '';
       markDirty();
       if (['type', 'entity', 'fanMode', 'name'].includes(k)) renderSettings();
     }));
@@ -681,8 +682,8 @@ function bind() {
     const hasFan = draft.actuators.some((a) => a.type === 'fan');
     const id = `act_${Date.now().toString(36)}`;
     draft.actuators.push(hasFan
-      ? { id, name: `Valve ${draft.actuators.length}`, type: 'number', entity: null, fanMode: 'percentage', idle: '', boost: 100, afterrun: '', restricted: 10, nightMax: '' }
-      : { id, name: 'Ventilation unit', type: 'fan', entity: null, fanMode: 'percentage', idle: 10, boost: 75, afterrun: 50, restricted: '', nightMax: '' });
+      ? { id, name: `Valve ${draft.actuators.length}`, type: 'number', entity: null, fanMode: 'percentage', idle: '', boost: 100, afterrun: '', restricted: 10, nightMax: '', multiBoost: '' }
+      : { id, name: 'Ventilation unit', type: 'fan', entity: null, fanMode: 'percentage', idle: 10, boost: 75, afterrun: 50, restricted: '', nightMax: '', multiBoost: '' });
     markDirty();
     sub = 'actuators';
     $$('#settings-nav .subtab').forEach((x) => x.classList.toggle('active', x.dataset.sub === sub));

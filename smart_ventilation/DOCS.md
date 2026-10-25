@@ -48,7 +48,8 @@ Levels:
 - **Rest**: when no zone needs it.
 - **Boost** and **Afterrun**: when a zone that uses this actuator is in that state.
 - **While another zone boosts** (optional, for valves): when this actuator's own zones are at rest but another zone is boosting. For example 0–25%, so the air comes from the wet room. Leave empty for a fan.
-- **Night maximum** (optional, numbers and fan percentage): the highest value during the night window.
+- **When more zones boost** (optional, numbers and fan percentage): the value when two or more of this actuator's zones boost at the same time. Meant for a shared fan, for example 80 while one zone alone uses 75. Not lower than boost. Empty: boost, as for one zone. Boost in one zone and afterrun in the other is still boost.
+- **Night maximum** (optional, numbers and fan percentage): the highest value during the night window. It also caps "when more zones boost".
 
 An actuator used by more than one zone is **shared**: it gets the highest level any of its zones asks for.
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3-dev
+
+- New, optional per actuator: **When more zones boost** (Settings › Actuators). The value when two or more of its zones boost at the same time, for example the shared fan at 80 % when the shower and the bathroom both boost (75 % for one). Empty: as before. The night maximum still caps it. (#5)
+- Tests: both zones boost, one boost and one afterrun, the night maximum, a zone that is off, and the check that it is not lower than boost.
+
 ## 0.3.2-dev
 
 - Home: each zone card now shows its own fan and valves, with the position now. When the app is moving one (or would, in dry-run), it also shows where to. A boosting valve is blue, afterrun green. A zone without a linked fan or valve says so. (#4)

@@ -14,6 +14,7 @@ A Home Assistant app (add-on) that ventilates showers and bathrooms on the **hum
 - **More rooms, shared fan**: each room (zone) has its own sensor and valve. A fan used by more zones gets the highest level any zone asks for, so the bathroom never turns the fan down while the shower is still boosting.
 - **Valves of the other rooms**: while one zone boosts, the valve of another zone can go to a low level (for example 0–25%), so the air comes from the wet room.
 - **Reference sensors** (optional): humidity sensors in other rooms. When the whole house gets humid (weather), that is not a shower.
+- **More zones at once** (optional): a higher fan level when the shower and the bathroom boost at the same time.
 - **Night maximum** (optional): a quieter maximum level during the night.
 - **Dashboard controls** (optional): per zone Auto / Off, a "boost now" button and the main settings as helpers in Home Assistant, in a YAML package the app writes itself. Put them on any dashboard.
 - **Live control** (off by default): the app really sets the fan and valves, per actuator on or off. It only sends a value when it changes, tries again if a device does not follow, and sets everything back to rest when you turn it off or the app stops.
@@ -33,7 +34,7 @@ See [DOCS.md](smart_ventilation/DOCS.md) for every setting.
 
 | Actuator | Type | Rest | Boost | Afterrun | While another zone boosts |
 | --- | --- | --- | --- | --- | --- |
-| `fan.open_air_mini` | Fan, percentage | 10 | 75 | 50 | – |
+| `fan.open_air_mini` | Fan, percentage | 10 | 75 (80 when both boost) | 50 | – |
 | Shower valve | Number | your choice | 100 | your choice | 10 |
 | Bathroom valve | Number | your choice | 100 | your choice | 10 |
 

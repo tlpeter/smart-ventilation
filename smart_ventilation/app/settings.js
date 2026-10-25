@@ -76,6 +76,8 @@ function normalise(raw) {
       afterrun: levelValue(a && a.afterrun),
       restricted: levelValue(a && a.restricted),
       nightMax: levelValue(a && a.nightMax),
+      // Optional: the value when two or more of its zones boost at once.
+      multiBoost: levelValue(a && a.multiBoost),
       // With Live control on: may the app set this one? (Off = advice only.)
       live: !(a && a.live === false),
     };
