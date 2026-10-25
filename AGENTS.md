@@ -27,6 +27,7 @@ It is a sibling of [Smart Charging Planner](https://github.com/tlpeter/smart-cha
 - **Nothing is hardcoded to a brand or an entity.** Every entity is chosen in the app with an entity picker.
 - **New behaviour is an option** when not everyone has it; off by default unless the owner says otherwise.
 - **Every version gets a changelog entry**, short and in plain words.
+- **Close the issue when its work is pushed** (owner's rule, 25 Oct 2026, always). Right after a push: put the issue number in the commit message (for example `(#5)`), add a short comment to the issue with the version and commit, tick what is done, and close it. Anything still to check at home goes in that comment ("reopen if …"), not as a reason to keep it open. Work that is not pushed yet keeps its issue open.
 
 ## Branches and versions
 
