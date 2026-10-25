@@ -226,7 +226,12 @@ async function run() {
     s.general.liveControl = on;
     assert.equal((await post('/api/settings', s)).ok, true);
   };
-  // Mode is Off: turning Live control on sets everything to rest.
+  // Back to Auto first. The mode helper still says Off from above, and the
+  // app only sees a change of a helper: choosing Off again later would not
+  // be a change.
+  await haService('input_select', 'select_option', { entity_id: 'input_select.smart_ventilation_shower_mode', option: 'Auto' });
+  await until(async () => (await appApi('/api/status')).zones[0].mode === 'auto', 'mode Auto from the dashboard');
+  // Turning Live control on sets everything to rest.
   await setLive(true);
   assert.equal((await appApi('/api/status')).mode, 'live');
   await until(async () => await fanAt(10) && await numAt(v1, min1) && await numAt(v2, min2), 'rest values set in Home Assistant');
@@ -245,6 +250,7 @@ async function run() {
 
   // Boost again, then turn Live control off: the app sets it back to rest.
   await haService('input_select', 'select_option', { entity_id: 'input_select.smart_ventilation_shower_mode', option: 'Auto' });
+  await until(async () => (await appApi('/api/status')).zones[0].mode === 'auto', 'mode Auto again');
   await haService('input_button', 'press', { entity_id: 'input_button.smart_ventilation_shower_boost' });
   await until(async () => await fanAt(75) && await numAt(v1, max1), 'boosting again');
   await setLive(false);
