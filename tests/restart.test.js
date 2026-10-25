@@ -101,4 +101,5 @@ test('a shower that starts on the safety net still counts as a shower (issue #6)
   assert.equal(st.zones[0].entities.baseline, null);
   assert.equal(st.zones[0].entities.rise, null);
   assert.equal(st.zones[0].entities.showers, null);
+  assert.equal(st.zones[0].entities.reference, null);
 });

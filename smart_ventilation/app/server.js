@@ -418,6 +418,11 @@ async function publish(t) {
     items.push([`sensor.smart_ventilation_${z.id}_showers_today`, showersOn(z.id, localDay(t)), { friendly_name: `${z.name} showers today`, unit_of_measurement: 'showers', state_class: 'total_increasing', icon: 'mdi:shower-head' }]);
     items.push([`binary_sensor.smart_ventilation_${z.id}_shower_detected`, st.state === 'boost' ? 'on' : 'off', { friendly_name: `${z.name} shower detected`, device_class: 'moisture' }]);
   }
+  // The reference the app uses: the median of the reference sensors.
+  if (s.general.references.length) {
+    const ref = engine.valueAt(referenceHistory, t);
+    items.push([REFERENCE_SENSOR, ref ?? 'unknown', { friendly_name: 'Ventilation humidity reference', unit_of_measurement: '%', state_class: 'measurement', icon: 'mdi:home-percent', sensors: s.general.references }]);
+  }
   for (const a of s.actuators) {
     const d = advice[a.id];
     if (!d) continue;
@@ -451,9 +456,15 @@ function showersOn(zoneId, day) {
 }
 
 // The app's own sensors behind the tiles on Home (only with Publish sensors).
+const REFERENCE_SENSOR = 'sensor.smart_ventilation_reference';
 function ownSensors(zoneId) {
-  if (options.publish_sensors !== true) return { baseline: null, rise: null, showers: null };
-  return { baseline: `sensor.smart_ventilation_${zoneId}_baseline`, rise: `sensor.smart_ventilation_${zoneId}_rise`, showers: `sensor.smart_ventilation_${zoneId}_showers_today` };
+  if (options.publish_sensors !== true) return { baseline: null, rise: null, showers: null, reference: null };
+  return {
+    baseline: `sensor.smart_ventilation_${zoneId}_baseline`,
+    rise: `sensor.smart_ventilation_${zoneId}_rise`,
+    showers: `sensor.smart_ventilation_${zoneId}_showers_today`,
+    reference: settings.get().general.references.length ? REFERENCE_SENSOR : null,
+  };
 }
 
 function status() {

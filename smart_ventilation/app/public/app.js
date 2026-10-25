@@ -135,7 +135,7 @@ function zoneCard(z) {
       ${tile('Humidity', fmt(f.humidity, '%'), [e.humidity])}
       ${tile(`Baseline${f.baselineFrozen ? ' (frozen)' : ''}`, fmt(f.baseline, '%'), [e.baseline])}
       ${tile('Rise in window', f.rise === null ? '–' : (f.rise >= 0 ? '+' : '') + f.rise, [e.rise])}
-      ${f.reference !== null ? tile('Reference', fmt(f.reference, '%'), e.references) : ''}
+      ${f.reference !== null ? tile('Reference', fmt(f.reference, '%'), e.reference ? [e.reference] : e.references) : ''}
       ${f.temperature !== null ? tile('Temperature', fmt(f.temperature, ' °C'), [e.temperature]) : ''}
       ${e.showers ? tile('Showers today', z.showersToday, [e.showers]) : `<a class="figure link" href="#" data-go-activity title="See the Activity log"><span>Showers today</span><b>${z.showersToday}</b></a>`}
     </div>

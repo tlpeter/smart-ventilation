@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.10-dev
+
+- Home: with **Publish sensors** on, the Reference tile opens the app's own sensor `sensor.smart_ventilation_reference`: the reference value the app really uses (the middle value of your reference sensors). Without Publish sensors it opens the reference sensor itself, as before. (#10)
+- Tests: the reference sensor and its value.
+
 ## 0.3.9-dev
 
 - Home: Baseline, Rise in window and Showers today now open their own history, not the humidity sensor. They are worked out by the app, so they need **Publish sensors** on (the app's Configuration tab in Home Assistant). New sensors per zone: `sensor.smart_ventilation_<zone>_rise` and `sensor.smart_ventilation_<zone>_showers_today`; the baseline sensor already existed. All three are numbers, so Home Assistant draws a graph. Without Publish sensors, Baseline and Rise are not clickable and Showers today opens Activity. (#9)
