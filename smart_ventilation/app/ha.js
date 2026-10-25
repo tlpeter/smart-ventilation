@@ -26,7 +26,9 @@ let nextId = 1;
 const pending = new Map();
 const connectListeners = [];
 const stateListeners = [];
+const serviceListeners = [];
 let subscriptionId = null;
+let serviceSubscriptionId = null;
 
 const LEVELS = { debug: 10, info: 20, warning: 30, error: 40 };
 const threshold = LEVELS[options.log_level] || LEVELS.info;
@@ -48,9 +50,14 @@ function warn(...args) { logAt('warning', args); }
 const READ_ONLY_COMMANDS = new Set([
   'get_states',
   'get_config',
-  'subscribe_events', // only for state_changed, see below
+  'subscribe_events', // only for state_changed and call_service, see below
   'history/history_during_period',
 ]);
+
+// Events the app may follow (reading only). call_service: to see a dashboard
+// choice that is the same as before (Home Assistant then sends no
+// state_changed), see dashboard.onSelectCall.
+const SUBSCRIBE_EVENTS = new Set(['state_changed', 'call_service']);
 
 // SAFETY: the only actions the app may call (Live control), each on its own
 // kind of entity.
@@ -100,7 +107,7 @@ async function callAction(command, timeoutMs = 10000) {
 function call(message, timeoutMs = 20000) {
   return new Promise((resolve, reject) => {
     const ok = READ_ONLY_COMMANDS.has(message.type) &&
-      (message.type !== 'subscribe_events' || message.event_type === 'state_changed');
+      (message.type !== 'subscribe_events' || SUBSCRIBE_EVENTS.has(message.event_type));
     if (!ok) {
       warn('Refused command', message.type, '- not a read command');
       reject(new Error(`Command ${message.type} is not allowed here: only reads go through call()`));
@@ -146,6 +153,8 @@ async function setState(entityId, value, attributes) {
 
 function onConnect(fn) { connectListeners.push(fn); }
 function onStateChanged(fn) { stateListeners.push(fn); }
+// fn(domain, service, serviceData) for every action called in Home Assistant.
+function onServiceCalled(fn) { serviceListeners.push(fn); }
 
 function connect() {
   if (!TOKEN) {
@@ -178,6 +187,13 @@ function connect() {
       } catch (err) {
         warn('Could not follow state changes:', err.message);
       }
+      try {
+        serviceSubscriptionId = nextId;
+        await call({ type: 'subscribe_events', event_type: 'call_service' });
+      } catch (err) {
+        serviceSubscriptionId = null;
+        warn('Could not follow dashboard choices:', err.message);
+      }
       for (const fn of connectListeners) {
         try { await fn(); } catch (err) { warn('Start-up step failed:', err.message); }
       }
@@ -187,6 +203,11 @@ function connect() {
     } else if (msg.type === 'event' && msg.id === subscriptionId) {
       const data = msg.event && msg.event.data;
       if (data && data.entity_id) for (const fn of stateListeners) fn(data.entity_id, data.new_state);
+    } else if (msg.type === 'event' && msg.id === serviceSubscriptionId) {
+      const data = (msg.event && msg.event.data) || {};
+      for (const fn of serviceListeners) {
+        try { fn(String(data.domain || ''), String(data.service || ''), data.service_data || {}); } catch (err) { warn('Handling an action event failed:', err.message); }
+      }
     } else if (msg.type === 'result' && pending.has(msg.id)) {
       const { resolve, reject } = pending.get(msg.id);
       pending.delete(msg.id);
@@ -198,6 +219,7 @@ function connect() {
   socket.on('close', () => {
     state.connected = false;
     subscriptionId = null;
+    serviceSubscriptionId = null;
     for (const [, p] of pending) p.reject(new Error('Connection closed'));
     pending.clear();
     log('Connection to Home Assistant closed, retrying in', RECONNECT_MS / 1000, 's');
@@ -210,4 +232,4 @@ function connect() {
   });
 }
 
-module.exports = { state, connect, getStates, callAction, setActionPolicy, ACTIONS, getHistory, setState, onConnect, onStateChanged, log, debug, warn, recentLog, OWN_SENSOR };
+module.exports = { state, connect, getStates, callAction, setActionPolicy, ACTIONS, getHistory, setState, onConnect, onStateChanged, onServiceCalled, log, debug, warn, recentLog, OWN_SENSOR };

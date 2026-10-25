@@ -253,6 +253,13 @@ async function run() {
   await haService('input_select', 'select_option', { entity_id: 'input_select.smart_ventilation_shower_mode', option: 'Off' });
   await until(async () => await fanAt(10) && await numAt(v1, min1), 'back to rest after Off');
 
+  // #2: the helper says Off. Boost now, then Off again: Home Assistant sends
+  // no state change, but the app sees the choice and stops the boost.
+  await haService('input_button', 'press', { entity_id: 'input_button.smart_ventilation_shower_boost' });
+  await until(async () => await fanAt(75), 'boost by hand while the helper says Off');
+  await haService('input_select', 'select_option', { entity_id: 'input_select.smart_ventilation_shower_mode', option: 'Off' });
+  await until(async () => (await appApi('/api/status')).zones[0].state === 'off' && await fanAt(10), 'Off again stops the boost (#2)');
+
   // Boost again, then turn Live control off: the app sets it back to rest.
   await haService('input_select', 'select_option', { entity_id: 'input_select.smart_ventilation_shower_mode', option: 'Auto' });
   await until(async () => (await appApi('/api/status')).zones[0].mode === 'auto', 'mode Auto again');

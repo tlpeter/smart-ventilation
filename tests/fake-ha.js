@@ -14,7 +14,8 @@ function startFakeHa({ states = [], history = {}, token = 'test-token' } = {}) {
   const written = []; // every REST state write
   const sockets = new Set();
   const statesById = new Map(states.map((s) => [s.entity_id, s]));
-  let subscription = null;
+  let subscription = null; // state_changed
+  let serviceSubscription = null; // call_service
   const stuck = new Set();
   const failing = new Set();
 
@@ -48,7 +49,11 @@ function startFakeHa({ states = [], history = {}, token = 'test-token' } = {}) {
       const reply = (result, success = true) => ws.send(JSON.stringify({ id: msg.id, type: 'result', success, result }));
       if (msg.type === 'get_config') reply({ time_zone: 'Europe/Amsterdam' });
       else if (msg.type === 'get_states') reply([...statesById.values()]);
-      else if (msg.type === 'subscribe_events') { subscription = { ws, id: msg.id }; reply(null); }
+      else if (msg.type === 'subscribe_events') {
+        if (msg.event_type === 'call_service') serviceSubscription = { ws, id: msg.id };
+        else subscription = { ws, id: msg.id };
+        reply(null);
+      }
       else if (msg.type === 'history/history_during_period') {
         const out = {};
         for (const id of msg.entity_ids || []) if (history[id]) out[id] = history[id];
@@ -84,6 +89,18 @@ function startFakeHa({ states = [], history = {}, token = 'test-token' } = {}) {
       return received.filter((m) => m.type === 'call_service').map((m) => ({ service: `${m.domain}.${m.service}`, entity_id: m.target && m.target.entity_id, data: m.service_data }));
     },
     state(id) { return statesById.get(id); },
+    // A service call from someone else (for example a dashboard), like Home
+    // Assistant does it: first the call_service event, then the new state,
+    // but only when the state really changes. input_select.select_option only.
+    callService(domain, service, data) {
+      if (serviceSubscription) {
+        serviceSubscription.ws.send(JSON.stringify({ id: serviceSubscription.id, type: 'event', event: { event_type: 'call_service', data: { domain, service, service_data: data } } }));
+      }
+      if (domain === 'input_select' && service === 'select_option') {
+        const old = statesById.get(data.entity_id);
+        if (!old || old.state !== data.option) api.setState(data.entity_id, data.option);
+      }
+    },
     // Change an entity and tell the app, like Home Assistant does.
     setState(entityId, state, attributes = {}) {
       const nowIso = new Date().toISOString();

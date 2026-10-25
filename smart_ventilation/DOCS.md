@@ -113,7 +113,7 @@ With **Settings › General › Dashboard controls** on, the app makes helpers i
 | Helper | What it does |
 | --- | --- |
 | `input_select.smart_ventilation_<zone>_mode` | **Auto** (normal) or **Off** (the zone asks for nothing, also during a shower) |
-| `input_button.smart_ventilation_<zone>_boost` | **Boost now**: a boost by hand for the maximum boost time, then back to Auto. Choosing Off stops it. |
+| `input_button.smart_ventilation_<zone>_boost` | **Boost now**: a boost by hand for the maximum boost time, then back to Auto. Choosing Off stops it, also when the mode already said Off. |
 | `input_number.smart_ventilation_<zone>_rise_trigger` | Rise trigger (points) |
 | `input_number.smart_ventilation_<zone>_safety_net` | Absolute trigger, the safety net (%) |
 | `input_number.smart_ventilation_<zone>_stop_margin` | Stop margin (points) |
@@ -132,7 +132,7 @@ How it works:
 
    Then restart Home Assistant once.
 3. After the file is written (and after a new zone), load the helpers once: **Developer tools → YAML** → reload **Input numbers**, **Input selects** and **Input buttons**, or restart Home Assistant. The card shows how many helpers Home Assistant has.
-4. The app only **reads** the helpers; it never sets them. A change on the dashboard is used right away, and the app writes it into the file as the helper's starting value (`initial`), so it is kept after Home Assistant restarts.
+4. The app only **reads** the helpers; it never sets them. So after **Boost now** the mode helper still shows what it said before. Choosing an option on it always counts, also the same one again (the app follows the action itself, not only the change). A change on the dashboard is used right away, and the app writes it into the file as the helper's starting value (`initial`), so it is kept after Home Assistant restarts.
 5. A setting with a helper is set on the dashboard: in the app it is shown but cannot be changed there.
 
 Turning dashboard controls off removes the file; reload or restart Home Assistant to remove the helpers.

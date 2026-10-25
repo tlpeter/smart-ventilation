@@ -55,7 +55,7 @@ It is a sibling of [Smart Charging Planner](https://github.com/tlpeter/smart-cha
 - `tests/actuators.test.js`: shared fan (highest demand wins), restricted valves, night maximum, validation, commands.
 - `tests/settings.test.js`: cleaning up and checking settings.
 - `tests/helpers.test.js`: the YAML package text and finding the packages folder in `configuration.yaml`.
-- `tests/dashboard.test.js`: dashboard controls with a temporary config folder: the file, reading the helpers, changes from the dashboard, Off and Boost now, nothing sent to Home Assistant.
+- `tests/dashboard.test.js`: dashboard controls with a temporary config folder: the file, reading the helpers, changes from the dashboard, Off and Boost now (also Off again when the helper already says Off: the app follows `call_service` events, read only), nothing sent to Home Assistant.
 - `tests/chart.test.js`: the chart ranges, thinning (a shower peak stays), reference median and bands.
 - `tests/restart.test.js`: a restart keeps the safety-net lock; "Showers today" counts only showers.
 - `tests/control.test.js`: Live control: when a value is sent, a change by hand stays, retries and giving up, speed steps, back to rest, and what `ha.callAction` refuses.

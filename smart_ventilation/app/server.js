@@ -466,7 +466,8 @@ function status() {
     version: APP_VERSION,
     mode: liveControlOn(s) ? 'live' : 'dry-run',
     maxTries: control.MAX_TRIES,
-    connected: ha.state.connected,
+    // Connected and the states are read (before that, settings cannot be checked).
+    connected: ha.state.connected && started,
     haVersion: ha.state.version,
     error: ha.state.lastError,
     night: isNight(t),
@@ -752,6 +753,12 @@ ha.onConnect(async () => {
   evaluate();
 });
 ha.onStateChanged(onState);
+// A choice on a mode helper, also when it did not change (see dashboard.js).
+ha.onServiceCalled((domain, service, data) => {
+  if (!started || domain !== 'input_select' || service !== 'select_option') return;
+  const ids = Array.isArray(data.entity_id) ? data.entity_id : [data.entity_id];
+  for (const id of ids) dashboard.onSelectCall(id, data.option);
+});
 
 server.listen(PORT, () => {
   ha.log(`Smart Ventilation ${APP_VERSION} on port ${PORT} (${liveControlOn() ? 'Live control on: sets the live actuators' : 'dry-run: advice only, nothing is sent'})`);

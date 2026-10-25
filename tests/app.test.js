@@ -254,6 +254,7 @@ test('the app against a fake Home Assistant', async (t) => {
     const types = new Set(ha.received.map((m) => m.type));
     for (const type of types) assert.ok(['get_config', 'get_states', 'subscribe_events', 'history/history_during_period'].includes(type), `unexpected command ${type}`);
     assert.ok(!ha.received.some((m) => m.type === 'call_service'), 'no action was ever called');
+    assert.deepEqual([...new Set(ha.received.filter((m) => m.type === 'subscribe_events').map((m) => m.event_type))].sort(), ['call_service', 'state_changed'], 'only follows these events');
     assert.ok(ha.written.length > 0, 'own sensors were published');
     for (const w of ha.written) assert.match(w.entity_id, /^(sensor|binary_sensor)\.smart_ventilation_/);
     assert.ok(ha.written.some((w) => w.entity_id === 'binary_sensor.smart_ventilation_shower_shower_detected' && w.state === 'on'));

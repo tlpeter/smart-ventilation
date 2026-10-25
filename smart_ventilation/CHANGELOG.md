@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.8-dev
+
+- Fix: on the dashboard, choosing **Off** did not stop a **Boost now** when the mode helper already said Off (for Home Assistant that was no change). The app now also sees a choice that is the same as before, so Off always stops the boost. (#2)
+- The app follows one more kind of event from Home Assistant, only reading: which actions are called (to see that choice).
+- "Connected" on the page (and in the app's status) now means: connected and the entities are read. Before that, saving settings could fail with "not found".
+- Tests: Off again after Boost now, with the fake Home Assistant and with the real Home Assistant Core 2026.10.4.
+
 ## 0.3.7-dev
 
 - Home: a tap on a tile now opens Home Assistant's own pop-up with the history, on the same page, instead of going to the history page. The pop-up only shows; the app changes nothing. With more than one reference sensor, the history page still opens (the pop-up shows one entity). (#8)

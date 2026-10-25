@@ -105,6 +105,17 @@ test('helpers: the file is written, the helpers are read, changes are taken, not
   ha.setState('input_select.smart_ventilation_shower_mode', 'Off');
   await until(async () => (await get('/api/status')).zones[0].state === 'off', 'Off stops the boost');
 
+  // #2: the helper still says Off. Boost now, then Off again: for Home
+  // Assistant that is no change (no state_changed), but the call is seen.
+  ha.setState('input_button.smart_ventilation_shower_boost', iso());
+  await until(async () => (await get('/api/status')).zones[0].state === 'boost', 'boost by hand from Off');
+  ha.callService('input_select', 'select_option', { entity_id: 'input_select.smart_ventilation_shower_mode', option: 'Off' });
+  await until(async () => (await get('/api/status')).zones[0].state === 'off', 'Off again stops the boost');
+  // Another helper or another option does nothing odd.
+  ha.callService('input_select', 'select_option', { entity_id: 'input_select.something_else', option: 'Auto' });
+  ha.callService('input_select', 'select_option', { entity_id: ['input_select.smart_ventilation_shower_mode'], option: 'Auto' });
+  await until(async () => (await get('/api/status')).zones[0].mode === 'auto', 'a list of entities works too');
+
   const log = await get('/api/log');
   assert.ok(log.some((e) => /safety net 87 \(from Home Assistant\)/.test(e.reason || '')));
 

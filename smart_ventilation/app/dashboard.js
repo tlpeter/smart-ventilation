@@ -121,6 +121,18 @@ function createDashboard({ getSettings, getMode, onNumber, onMode, onBoost, log,
     }
   }
 
+  // Someone chose an option on a mode helper (input_select.select_option).
+  // Also when it is the same option as before: Home Assistant then sends no
+  // state change. Example: the helper says Off, Boost now was pressed, and
+  // Off is chosen again to stop the boost.
+  function onSelectCall(entityId, option) {
+    if (!enabled() || typeof entityId !== 'string' || !entityId.includes('smart_ventilation_')) return;
+    const hit = lookup(entityId);
+    if (!hit || hit.kind !== 'mode') return;
+    const m = helpers.modeValue({ state: String(option) });
+    if (m && getMode(hit.zone.id) !== m) onMode(hit.zone.id, m);
+  }
+
   // For the Settings page: is it set up, which helpers exist.
   function status(stateOf) {
     const zones = getSettings().zones.filter((z) => z.enabled !== false);
@@ -145,7 +157,7 @@ function createDashboard({ getSettings, getMode, onNumber, onMode, onBoost, log,
     };
   }
 
-  return { sync, onState, status, enabled };
+  return { sync, onState, onSelectCall, status, enabled };
 }
 
 module.exports = { createDashboard, CONFIG_DIR };
