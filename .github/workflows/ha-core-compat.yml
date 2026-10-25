@@ -45,7 +45,10 @@ jobs:
             --volume "$RUNNER_TEMP/ha-core-config:/config" \
             "ghcr.io/home-assistant/home-assistant:${HA_CORE_VERSION}"
       - name: Test Smart Ventilation against real Core
-        run: node --test tests/ha-core-compat.test.js
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test tests/ha-core-compat.test.js 2>&1 | tee "$RUNNER_TEMP/core-test.log"
         env:
           HA_CORE_TEST: '1'
           # The app writes its dashboard helpers into the Core's config folder.
@@ -53,6 +56,15 @@ jobs:
       - name: Home Assistant log on failure
         if: failure()
         run: docker logs sv-ha-core
+      # The full log is not always easy to reach: put the key lines as
+      # notes on the run, so the reason shows on the run's summary page.
+      - name: Show the reason on the run
+        if: failure()
+        shell: bash
+        run: |
+          note() { local t="${2//'%'/'%25'}"; echo "::$1::${t:0:900}"; }
+          grep -E "not ok|Timed out|AssertionError|Error:|error:|expected|actual|WARNING|Refused|could not" "$RUNNER_TEMP/core-test.log" | grep -v "^ *at " | head -9 | while IFS= read -r l; do note error "$l"; done
+          docker logs sv-ha-core 2>&1 | grep -E "ERROR|Error" | tail -8 | while IFS= read -r l; do note warning "HA: $l"; done
       - name: Stop Home Assistant
         if: always()
         run: docker rm --force sv-ha-core
