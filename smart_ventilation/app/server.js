@@ -413,7 +413,9 @@ async function publish(t) {
     if (!st) continue;
     const fig = engine.zoneFigures(z, st, zoneInput(z, t));
     items.push([`sensor.smart_ventilation_${z.id}_state`, st.state, { friendly_name: `${z.name} ventilation state`, reason: st.reason, icon: 'mdi:fan' }]);
-    items.push([`sensor.smart_ventilation_${z.id}_baseline`, fig.baseline ?? 'unknown', { friendly_name: `${z.name} humidity baseline`, unit_of_measurement: '%', frozen: fig.baselineFrozen }]);
+    items.push([`sensor.smart_ventilation_${z.id}_baseline`, fig.baseline ?? 'unknown', { friendly_name: `${z.name} humidity baseline`, unit_of_measurement: '%', state_class: 'measurement', icon: 'mdi:water-percent', frozen: fig.baselineFrozen }]);
+    items.push([`sensor.smart_ventilation_${z.id}_rise`, fig.rise ?? 'unknown', { friendly_name: `${z.name} humidity rise`, unit_of_measurement: 'points', state_class: 'measurement', icon: 'mdi:trending-up', window_min: z.riseWindowMin }]);
+    items.push([`sensor.smart_ventilation_${z.id}_showers_today`, showersOn(z.id, localDay(t)), { friendly_name: `${z.name} showers today`, unit_of_measurement: 'showers', state_class: 'total_increasing', icon: 'mdi:shower-head' }]);
     items.push([`binary_sensor.smart_ventilation_${z.id}_shower_detected`, st.state === 'boost' ? 'on' : 'off', { friendly_name: `${z.name} shower detected`, device_class: 'moisture' }]);
   }
   for (const a of s.actuators) {
@@ -440,6 +442,20 @@ function entityMeta() {
   return map;
 }
 
+// Showers on one day: boosts from rest started by a fast rise. The safety
+// net (humidity above the absolute trigger) is not a shower. Older log lines
+// have no trigger: their reason tells.
+function showersOn(zoneId, day) {
+  const isShower = (e) => e.trigger ? e.trigger === 'shower' : /^Shower detected/.test(e.reason || '');
+  return logEntries.filter((e) => e.type === 'zone' && e.zone === zoneId && e.to === 'boost' && e.from === 'idle' && isShower(e) && localDay(e.t) === day).length;
+}
+
+// The app's own sensors behind the tiles on Home (only with Publish sensors).
+function ownSensors(zoneId) {
+  if (options.publish_sensors !== true) return { baseline: null, rise: null, showers: null };
+  return { baseline: `sensor.smart_ventilation_${zoneId}_baseline`, rise: `sensor.smart_ventilation_${zoneId}_rise`, showers: `sensor.smart_ventilation_${zoneId}_showers_today` };
+}
+
 function status() {
   const s = settings.get();
   const t = now();
@@ -451,14 +467,10 @@ function status() {
   const zones = s.zones.map((z) => {
     const st = zoneStates[z.id] || engine.newZoneState(t);
     const fig = engine.zoneFigures(z, st, zoneInput(z, t));
-    // Only a boost started by a fast rise is a shower; the safety net
-    // (humidity above the absolute trigger) is not. Older log lines have no
-    // trigger: their reason tells.
-    const isShower = (e) => e.trigger ? e.trigger === 'shower' : /^Shower detected/.test(e.reason || '');
-    const showersToday = logEntries.filter((e) => e.type === 'zone' && e.zone === z.id && e.to === 'boost' && e.from === 'idle' && isShower(e) && localDay(e.t) === today).length;
+    const showersToday = showersOn(z.id, today);
     return { id: z.id, name: z.name, enabled: z.enabled, mode: st.mode || 'auto', state: z.enabled ? st.state : 'off', since: st.since, reason: z.enabled ? st.reason : 'Zone is switched off', boostStart: st.boostStart, figures: fig, showersToday, actuators: z.actuators,
       // The entities behind the tiles, for their history in Home Assistant.
-      entities: { humidity: z.humidity, temperature: z.temperature, references: s.general.references },
+      entities: { humidity: z.humidity, temperature: z.temperature, references: s.general.references, ...ownSensors(z.id) },
       // The zone's own fan and valves, for its card on Home.
       devices: z.actuators.map((id) => acts.find((a) => a.id === id)).filter(Boolean).map((a) => ({ id: a.id, name: a.name, type: a.type, entity: a.entity, unit: a.unit, current: a.current, advised: a.advised, level: a.level, live: a.live })) };
   });

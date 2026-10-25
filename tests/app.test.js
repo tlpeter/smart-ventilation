@@ -174,7 +174,9 @@ test('the app against a fake Home Assistant', async (t) => {
     assert.equal(dev(1).v_bath.advised, 10);
     assert.equal(dev(1).v_bath.level, 'restricted');
     // The entities behind the tiles, for their history in Home Assistant (issue #8).
-    assert.deepEqual(st.zones[0].entities, { humidity: 'sensor.shower_humidity', temperature: 'sensor.shower_temperature', references: ['sensor.hall_humidity'] });
+    assert.equal(st.zones[0].entities.humidity, 'sensor.shower_humidity');
+    assert.equal(st.zones[0].entities.temperature, 'sensor.shower_temperature');
+    assert.deepEqual(st.zones[0].entities.references, ['sensor.hall_humidity']);
     assert.equal(st.zones[1].entities.temperature, null);
     assert.equal(dev(0).v_shower.entity, 'number.shower_valve_capacity');
     assert.equal(dev(0).unit.entity, 'fan.open_air_mini');
@@ -259,6 +261,19 @@ test('the app against a fake Home Assistant', async (t) => {
     for (const w of ha.written) assert.match(w.entity_id, /^(sensor|binary_sensor)\.smart_ventilation_/);
     assert.ok(ha.written.some((w) => w.entity_id === 'binary_sensor.smart_ventilation_shower_shower_detected' && w.state === 'on'));
     assert.ok(ha.written.some((w) => w.entity_id === 'sensor.smart_ventilation_unit_advised_level' && w.state === '75'));
+    // The sensors behind the Baseline, Rise and Showers today tiles (issue #9),
+    // as numbers Home Assistant can draw.
+    const last = (id) => ha.written.filter((w) => w.entity_id === id).at(-1);
+    const rise = last('sensor.smart_ventilation_shower_rise');
+    assert.ok(rise && Number.isFinite(Number(rise.state)), 'rise is a number');
+    assert.equal(rise.attributes.state_class, 'measurement');
+    assert.ok(ha.written.some((w) => w.entity_id === 'sensor.smart_ventilation_shower_rise' && Number(w.state) >= 8), 'the shower rise was published');
+    assert.equal(last('sensor.smart_ventilation_shower_baseline').attributes.state_class, 'measurement');
+    const showers = last('sensor.smart_ventilation_shower_showers_today');
+    assert.equal(showers.state, '1');
+    assert.equal(showers.attributes.unit_of_measurement, 'showers');
+    const st = await get('/api/status');
+    assert.deepEqual(st.zones[0].entities, { humidity: 'sensor.shower_humidity', temperature: 'sensor.shower_temperature', references: ['sensor.hall_humidity'], baseline: 'sensor.smart_ventilation_shower_baseline', rise: 'sensor.smart_ventilation_shower_rise', showers: 'sensor.smart_ventilation_shower_showers_today' });
   });
 
   await t.test('state survives a restart of the app', async () => {

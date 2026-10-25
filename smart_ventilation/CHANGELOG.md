@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.9-dev
+
+- Home: Baseline, Rise in window and Showers today now open their own history, not the humidity sensor. They are worked out by the app, so they need **Publish sensors** on (the app's Configuration tab in Home Assistant). New sensors per zone: `sensor.smart_ventilation_<zone>_rise` and `sensor.smart_ventilation_<zone>_showers_today`; the baseline sensor already existed. All three are numbers, so Home Assistant draws a graph. Without Publish sensors, Baseline and Rise are not clickable and Showers today opens Activity. (#9)
+- Tests: the new sensors, and the tiles with Publish sensors on and off.
+
 ## 0.3.8-dev
 
 - Fix: on the dashboard, choosing **Off** did not stop a **Boost now** when the mode helper already said Off (for Home Assistant that was no change). The app now also sees a choice that is the same as before, so Off always stops the boost. (#2)

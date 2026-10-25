@@ -97,4 +97,8 @@ test('a shower that starts on the safety net still counts as a shower (issue #6)
   assert.equal(start.trigger, 'shower');
   assert.match(start.reason, /above 85%, then shower detected/);
   assert.equal(st.log.filter((e) => e.type === 'zone' && e.to === 'boost').length, 1, 'still one boost');
+  // Publish sensors is off here: no own sensors behind the tiles (issue #9).
+  assert.equal(st.zones[0].entities.baseline, null);
+  assert.equal(st.zones[0].entities.rise, null);
+  assert.equal(st.zones[0].entities.showers, null);
 });
