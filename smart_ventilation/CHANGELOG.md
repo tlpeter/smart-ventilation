@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1-dev
+
+- Fix: in a room whose normal humidity is above the absolute trigger (for example 87 % with a trigger of 85 %), the boost stopped "back to normal" and the safety net started a new one 30 seconds later, all day long. Now the safety net then waits until the room is clearly drier, the same as after the maximum boost time. A real shower (a fast rise) still starts a boost.
+- Tests: that room, with the numbers from a real diagnostics file.
+
 ## 0.3.0-dev
 
 - New: **Live control** (Settings › General, off by default). On: the app really sets the fan and valves, instead of only showing advice. The chip at the top says **Live** or **Dry-run**.

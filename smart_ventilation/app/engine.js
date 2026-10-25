@@ -199,11 +199,18 @@ function evaluateZone(cfgIn, st, input) {
       st.absLatch = h >= cfg.absoluteTrigger;
       go('afterrun', `Maximum boost time of ${cfg.maxBoostMin} min reached`);
     } else if (ran >= cfg.minBoostMin * MIN) {
+      let stopped = false;
       if (st.baseline !== null && h <= st.baseline + cfg.stopMargin) {
         go('afterrun', `Back to normal: ${round1(h)}% ≤ baseline ${st.baseline}% + ${cfg.stopMargin}`);
+        stopped = true;
       } else if (ref !== null && h <= ref + cfg.stopMargin) {
         go('afterrun', `Back to normal: ${round1(h)}% ≤ reference ${round1(ref)}% + ${cfg.stopMargin}`);
+        stopped = true;
       }
+      // Back to normal, but still above the absolute trigger: this room is
+      // simply that humid. Without the lock the safety net would start a new
+      // boost right away, again and again.
+      if (stopped && h >= cfg.absoluteTrigger) st.absLatch = true;
     }
     return result(st, before);
   }

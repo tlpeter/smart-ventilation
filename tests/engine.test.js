@@ -200,3 +200,30 @@ test('mode Boost works without a humidity reading; back to Auto stops it', () =>
   assert.equal(st.state, 'afterrun');
   assert.match(st.reason, /stopped/);
 });
+
+test('a room whose normal level is above the absolute trigger does not boost again and again', () => {
+  // Seen in real use (issue #3): baseline 84.5 %, trigger 85 %, room stays at
+  // 87 %. The boost stopped "back to normal" and the safety net started a new
+  // one 30 s later, all day.
+  const h = steady(84.5, [[1, 87]]);
+  const st = engine.newZoneState(T0);
+  engine.evaluateZone({}, st, input(h, 1));
+  assert.equal(st.state, 'boost');
+  assert.equal(st.trigger, 'humid');
+  engine.evaluateZone({}, st, input(h, 7));
+  assert.equal(st.state, 'afterrun');
+  assert.equal(st.absLatch, true, 'the safety net waits');
+  for (const m of [8, 10, 12, 20, 30]) engine.evaluateZone({}, st, input(h, m));
+  assert.equal(st.state, 'idle', 'no new boost from the safety net');
+  // A real shower still counts.
+  engine.addSample(h, T0 + 31 * MIN, 90, T0 + 31 * MIN);
+  engine.addSample(h, T0 + 33 * MIN, 96, T0 + 33 * MIN);
+  engine.evaluateZone({}, st, input(h, 33));
+  assert.equal(st.state, 'boost');
+  assert.equal(st.trigger, 'shower');
+  // Once clearly drier, the safety net works again.
+  const st2 = engine.newZoneState(T0);
+  st2.absLatch = true;
+  engine.evaluateZone({}, st2, input(steady(80), 0));
+  assert.equal(st2.absLatch, false);
+});
