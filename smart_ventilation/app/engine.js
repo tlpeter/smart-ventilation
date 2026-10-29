@@ -104,7 +104,7 @@ function round1(x) {
 // ---------------------------------------------------------------------------
 
 function newZoneState(now) {
-  return { state: 'idle', since: now, baseline: null, boostStart: null, reason: 'Waiting for readings', absLatch: false, trigger: null, mode: 'auto' };
+  return { state: 'idle', since: now, baseline: null, boostStart: null, reason: 'Waiting for readings', absLatch: false, trigger: null, mode: 'auto', sensorProblem: null };
 }
 
 // cfg: zone settings. st: the zone's state (changed in place and returned).
@@ -128,6 +128,8 @@ function evaluateZone(cfgIn, st, input) {
   const h = valueAt(hum.history, now);
   const ref = input.reference && input.reference.history.length ? valueAt(input.reference.history, now) : null;
   const windowMs = cfg.riseWindowMin * MIN;
+  const previousProblem = st.sensorProblem;
+  st.sensorProblem = null;
 
   const go = (to, reason) => {
     if (st.state !== to) st.since = now;
@@ -160,13 +162,27 @@ function evaluateZone(cfgIn, st, input) {
     return result(st, before);
   }
 
-  // 1. A sensor problem always wins: back to rest, and say why.
+  // 1. An old reading must not turn ventilation off in a wet room. Keep
+  // the running boost/afterrun and its baseline until reports return.
+  // Missing or unavailable readings still go to fault, as before.
   if (!hum.ok || h === null) {
+    if (hum.stale && h !== null && (['boost', 'afterrun'].includes(st.state) || h >= cfg.absoluteTrigger)) {
+      if (!['boost', 'afterrun'].includes(st.state)) {
+        st.baseline = round1(baselineAt(hum.history, now, cfg.baselineWindowMin * MIN, windowMs));
+        st.boostStart = now;
+        st.trigger = 'sensor-hold'; // Not a newly detected shower.
+        go('boost', 'Keeping ventilation on');
+      }
+      st.sensorProblem = hum.problem || 'Humidity reading is too old';
+      st.reason = `${st.sensorProblem}; keeping ${st.state} until the sensor reports again`;
+      return result(st, before);
+    }
     go('fault', hum.problem || 'No humidity reading');
     st.boostStart = null;
     st.baseline = null;
     return result(st, before);
   }
+  if (previousProblem) st.reason = 'Sensor is reporting again';
   if (st.state === 'fault') go('idle', 'Sensor is back');
 
   // The absolute trigger stays off after a boost that ended on time, until

@@ -138,6 +138,69 @@ test('a sensor problem sends the zone back to rest, and it recovers', () => {
   assert.notEqual(st.state, 'fault');
 });
 
+test('a stale 99.7% reading keeps boost and the original baseline, even past the maximum (#11)', () => {
+  const h = steady(75, [[1, 86], [3, 99.7]]);
+  const st = engine.newZoneState(T0);
+  engine.evaluateZone({}, st, input(h, 3));
+  const boostStart = st.boostStart;
+  for (const minutes of [64, 124, 184]) {
+    engine.evaluateZone({}, st, input(h, minutes, { humidity: { history: h, ok: false, stale: true, problem: 'No reading for 120 min' } }));
+    assert.equal(st.state, 'boost');
+    assert.equal(st.baseline, 75);
+    assert.equal(st.boostStart, boostStart);
+    assert.equal(st.trigger, 'shower');
+    assert.match(st.reason, /keeping boost/);
+    assert.equal(engine.zoneFigures({}, st, input(h, minutes)).baselineFrozen, true);
+  }
+  engine.addSample(h, T0 + 185 * MIN, 76);
+  engine.evaluateZone({}, st, input(h, 185));
+  assert.equal(st.state, 'afterrun');
+  assert.equal(st.sensorProblem, null);
+  assert.equal(st.baseline, 75, 'still frozen during afterrun');
+  engine.evaluateZone({}, st, input(h, 190));
+  assert.equal(st.state, 'idle');
+});
+
+test('a stale reading keeps afterrun and its baseline until reports return (#11)', () => {
+  const h = steady(75, [[1, 90], [6, 77]]);
+  const st = engine.newZoneState(T0);
+  engine.evaluateZone({}, st, input(h, 1));
+  engine.evaluateZone({}, st, input(h, 6));
+  assert.equal(st.state, 'afterrun');
+  engine.evaluateZone({}, st, input(h, 130, { humidity: { history: h, ok: false, stale: true, problem: 'Sensor silent' } }));
+  assert.equal(st.state, 'afterrun');
+  assert.equal(st.baseline, 75);
+  assert.match(st.reason, /Sensor silent; keeping afterrun/);
+  engine.addSample(h, T0 + 131 * MIN, 77);
+  engine.evaluateZone({}, st, input(h, 131));
+  assert.equal(st.state, 'idle');
+});
+
+test('an old high reading in idle ventilates, but is not counted as a shower (#11)', () => {
+  const st = engine.newZoneState(T0);
+  const h = steady(99.7);
+  const { change } = engine.evaluateZone({}, st, input(h, 130, { humidity: { history: h, ok: false, stale: true } }));
+  assert.equal(st.state, 'boost');
+  assert.equal(change.trigger, 'sensor-hold');
+  assert.ok(st.sensorProblem);
+});
+
+test('old low readings and unusable readings still fault; Off overrides a sensor hold (#11)', () => {
+  const h = steady(55);
+  const st = engine.newZoneState(T0);
+  engine.evaluateZone({}, st, input(h, 130, { humidity: { history: h, ok: false, stale: true } }));
+  assert.equal(st.state, 'fault');
+  engine.evaluateZone({}, st, input(h, 131, { humidity: { history: [], ok: false, stale: true } }));
+  assert.equal(st.state, 'fault', 'no numeric value to keep ventilating on');
+  const wet = steady(99.7);
+  engine.evaluateZone({}, st, input(wet, 132, { humidity: { history: wet, ok: false, stale: true } }));
+  assert.equal(st.state, 'boost');
+  st.mode = 'off';
+  engine.evaluateZone({}, st, input(wet, 133, { humidity: { history: wet, ok: false, stale: true } }));
+  assert.equal(st.state, 'off');
+  assert.equal(st.sensorProblem, null);
+});
+
 test('history helpers: a value counts until the next sample, old samples are dropped', () => {
   const h = [];
   engine.addSample(h, 0, 50, 0);

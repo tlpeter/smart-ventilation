@@ -22,6 +22,7 @@ const { createDashboard } = require('./dashboard');
 
 const PORT = Number(process.env.SV_PORT) || 8099; // SV_PORT: tests only
 const TICK_MS = Math.max(50, Number(process.env.SV_TICK_MS) || 30000);
+const STATE_REFRESH_MS = Math.max(50, Number(process.env.SV_STATE_REFRESH_MS) || 60000); // override: tests only
 const PUBLISH_EVERY_MS = 5 * 60 * 1000;
 const LOG_MAX = 500;
 const APP_VERSION = require('./package.json').version;
@@ -52,6 +53,7 @@ let logEntries = readJson(LOG_FILE, []);
 if (!Array.isArray(logEntries)) logEntries = [];
 const lastPublished = new Map(); // entity_id -> { value, at }
 let started = false;
+let refreshingStates = false;
 
 function now() { return Date.now(); }
 
@@ -61,10 +63,11 @@ function restoreRuntime() {
   zoneStates = {};
   for (const z of s.zones) {
     const old = saved && saved.zones && saved.zones[z.id];
-    // A boost that was running when the app stopped continues, if it is
-    // not older than the maximum boost time.
+    // Continue a recent boost/afterrun, or an older one held on because
+    // the sensor stopped reporting. Its original baseline must survive.
     const fresh = old && Number.isFinite(old.since) && now() - old.since < z.maxBoostMin * engine.MIN;
-    zoneStates[z.id] = fresh && ['boost', 'afterrun'].includes(old.state) ? { ...engine.newZoneState(now()), ...old } : engine.newZoneState(now());
+    const holding = old && Number.isFinite(old.since) && old.sensorProblem;
+    zoneStates[z.id] = (fresh || holding) && ['boost', 'afterrun'].includes(old.state) ? { ...engine.newZoneState(now()), ...old } : engine.newZoneState(now());
     // Keep the safety-net lock: after a boost that ran its maximum time, the
     // absolute trigger waits until the room is clearly drier. A restart (for
     // example an update) must not start a new boost because of it.
@@ -131,7 +134,7 @@ function rebuildReference() {
   for (const t of times) addReferenceSample(t);
 }
 
-function onState(entityId, st) {
+function onState(entityId, st, evaluateNow = true) {
   if (st) entityStates.set(entityId, st);
   else entityStates.delete(entityId);
   if (started) dashboard.onState(entityId, st);
@@ -142,7 +145,30 @@ function onState(entityId, st) {
     engine.addSample(history(entityId), t, v, now());
     if (settings.get().general.references.includes(entityId)) addReferenceSample(t);
   }
-  evaluate();
+  if (evaluateNow) evaluate();
+}
+
+// An unchanged report updates last_reported in HA, but does not emit
+// state_changed. Read it again once a minute; polling is not a new report.
+async function refreshStates() {
+  if (!started || !ha.state.connected || refreshingStates) return;
+  refreshingStates = true;
+  const before = new Map(entityStates);
+  try {
+    const reports = await ha.getReportTimes([...trackedEntities()]);
+    for (const id of trackedEntities()) {
+      const old = entityStates.get(id);
+      // Never overwrite an event received while the request was in flight.
+      if (old && old === before.get(id) && Date.parse(reports[id]) > sampleTime(old)) {
+        onState(id, { ...old, last_reported: reports[id] }, false);
+      }
+    }
+    evaluate();
+  } catch (err) {
+    ha.warn('Could not refresh sensor reports:', err.message);
+  } finally {
+    refreshingStates = false;
+  }
 }
 
 async function loadHistory() {
@@ -173,6 +199,20 @@ async function loadStates() {
   const list = await ha.getStates();
   entityStates.clear();
   for (const st of list || []) entityStates.set(st.entity_id, st);
+  // Also refresh before the first evaluation, so cached HA timestamps do
+  // not briefly mark a reporting sensor as faulty after an app restart.
+  const before = new Map(entityStates);
+  try {
+    const reports = await ha.getReportTimes([...trackedEntities()]);
+    for (const id of trackedEntities()) {
+      const st = entityStates.get(id);
+      if (st && st === before.get(id) && Date.parse(reports[id]) > sampleTime(st)) {
+        entityStates.set(id, { ...st, last_reported: reports[id] });
+      }
+    }
+  } catch (err) {
+    ha.warn('Could not read sensor report times:', err.message);
+  }
   for (const id of trackedEntities()) {
     const st = entityStates.get(id);
     const v = numericState(st);
@@ -218,14 +258,16 @@ function humidityInput(z, t) {
   const st = z.humidity ? entityStates.get(z.humidity) : null;
   let ok = true;
   let problem = null;
+  let stale = false;
   if (!z.humidity) { ok = false; problem = 'No humidity sensor chosen'; }
   else if (!st) { ok = false; problem = `${z.humidity} not found`; }
   else if (numericState(st) === null) { ok = false; problem = `${z.humidity} is ${st.state}`; }
   else if (t - sampleTime(st) > g.sensorTimeoutMin * engine.MIN) {
     ok = false;
+    stale = true;
     problem = `No reading from ${z.humidity} for more than ${g.sensorTimeoutMin} min`;
   }
-  return { history: z.humidity ? history(z.humidity) : [], ok, problem };
+  return { history: z.humidity ? history(z.humidity) : [], ok, problem, stale };
 }
 
 function zoneInput(z, t) {
@@ -363,7 +405,12 @@ function evaluate() {
     if (!zoneStates[z.id]) zoneStates[z.id] = engine.newZoneState(t);
     if (z.enabled === false) continue;
     const input = zoneInput(z, t);
+    const previousProblem = zoneStates[z.id].sensorProblem;
     const { change, retrigger } = engine.evaluateZone(z, zoneStates[z.id], input);
+    if ((previousProblem || null) !== zoneStates[z.id].sensorProblem) {
+      changed = true;
+      addLog({ type: 'sensor', zone: z.id, name: z.name, reason: zoneStates[z.id].reason });
+    }
     if (retrigger) {
       // The boost started on the safety net, but it is a shower after all:
       // mark the start of this boost in the log, so Showers today counts it.
@@ -452,7 +499,7 @@ function entityMeta() {
 // have no trigger: their reason tells.
 function showersOn(zoneId, day) {
   const isShower = (e) => e.trigger ? e.trigger === 'shower' : /^Shower detected/.test(e.reason || '');
-  return logEntries.filter((e) => e.type === 'zone' && e.zone === zoneId && e.to === 'boost' && e.from === 'idle' && isShower(e) && localDay(e.t) === day).length;
+  return logEntries.filter((e) => e.type === 'zone' && e.zone === zoneId && e.to === 'boost' && ['idle', 'fault', 'off'].includes(e.from) && isShower(e) && localDay(e.t) === day).length;
 }
 
 // The app's own sensors behind the tiles on Home (only with Publish sensors).
@@ -788,6 +835,7 @@ server.listen(PORT, () => {
   ha.connect();
 });
 setInterval(evaluate, TICK_MS);
+setInterval(refreshStates, STATE_REFRESH_MS);
 
 // Stopping (an update, a restart): with Live control on, the fan and valves
 // the app moved go back to rest, so nothing stays on boost while the app is

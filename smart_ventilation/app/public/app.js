@@ -601,7 +601,7 @@ function generalView() {
     </div>
     ${dashboardCard()}
     <div class="card"><h2>Sensors</h2>
-      ${num('Sensor timeout (min)', 'sensorTimeoutMin', g.sensorTimeoutMin, 5, 720, 5, 'No reading for this long counts as a sensor problem: the zone goes back to rest.').replace('data-k=', 'data-g=')}
+      ${num('Sensor timeout (min)', 'sensorTimeoutMin', g.sensorTimeoutMin, 5, 720, 5, 'No report for this long: a running boost or afterrun stays on until reports return.').replace('data-k=', 'data-g=')}
     </div>`;
 }
 

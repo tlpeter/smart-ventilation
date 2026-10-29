@@ -20,7 +20,7 @@ const GENERAL_DEFAULTS = {
   nightEnabled: false,
   nightStart: '23:00',
   nightEnd: '07:00',
-  sensorTimeoutMin: 60,
+  sensorTimeoutMin: 120,
   dashboardHelpers: false,
   liveControl: false,
 };

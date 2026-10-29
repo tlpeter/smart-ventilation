@@ -121,6 +121,25 @@ async function getStates() {
   return call({ type: 'get_states' });
 }
 
+// State JSON is cached by HA, including last_reported. Read the live
+// attribute instead: identical reports do not invalidate that JSON cache.
+// This fixed template only reads timestamps, and never calls an action.
+async function getReportTimes(entityIds) {
+  if (!entityIds.length) return {};
+  if (entityIds.some((id) => typeof id !== 'string' || !/^[a-z_]+\.[a-z0-9_]+$/.test(id))) throw new Error('Invalid sensor entity');
+  const res = await fetch(`${REST_URL}/template`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(10000),
+    body: JSON.stringify({
+      template: '{% set ns = namespace(reports={}) %}{% for id in entity_ids %}{% set s = states[id] %}{% if s is not none %}{% set ns.reports = dict(ns.reports, **{id: s.last_reported.isoformat()}) %}{% endif %}{% endfor %}{{ ns.reports | to_json }}',
+      variables: { entity_ids: entityIds },
+    }),
+  });
+  if (!res.ok) throw new Error(`Reading sensor report times failed: HTTP ${res.status}`);
+  return res.json();
+}
+
 // Recent history for a few entities: { entity_id: [{ s, lu }] } (compact form).
 async function getHistory(entityIds, startIso) {
   if (!entityIds.length) return {};
@@ -232,4 +251,4 @@ function connect() {
   });
 }
 
-module.exports = { state, connect, getStates, callAction, setActionPolicy, ACTIONS, getHistory, setState, onConnect, onStateChanged, onServiceCalled, log, debug, warn, recentLog, OWN_SENSOR };
+module.exports = { state, connect, getStates, getReportTimes, callAction, setActionPolicy, ACTIONS, getHistory, setState, onConnect, onStateChanged, onServiceCalled, log, debug, warn, recentLog, OWN_SENSOR };

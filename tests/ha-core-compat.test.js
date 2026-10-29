@@ -125,6 +125,7 @@ async function run() {
       DATA_DIR: dataDir,
       SV_PORT: String(APP_PORT),
       SV_TICK_MS: '500',
+      SV_STATE_REFRESH_MS: '500',
       HA_WS_URL: HA_URL.replace(/^http/, 'ws') + '/api/websocket',
       HA_REST_URL: `${HA_URL}/api`,
       HA_TOKEN: token,
@@ -167,6 +168,20 @@ async function run() {
   let st = await until(async () => { const s = await appApi('/api/status'); return s.zones.length === 2 && s.zones[0].figures.humidity === 55 && s; }, 'the shower zone reads 55 %');
   assert.equal(st.zones[0].state, 'idle');
   assert.equal(st.zones[0].figures.reference, 52);
+
+  // An identical report changes last_reported, but not state_changed or
+  // HA's cached state JSON. Read the live timestamp, not that cache (#11).
+  const beforeReport = (await appApi('/api/diagnostics')).entities.find((e) => e.entity_id === 'sensor.shower_humidity');
+  await json(`${HA_URL}/api/states/sensor.shower_humidity`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state: '55', attributes: beforeReport.attributes }),
+  });
+  await until(async () => {
+    const currentReport = (await appApi('/api/diagnostics')).entities.find((e) => e.entity_id === 'sensor.shower_humidity');
+    assert.equal(currentReport.last_updated, beforeReport.last_updated, 'the value and attributes did not change');
+    return Date.parse(currentReport.last_reported) > Date.parse(beforeReport.last_reported);
+  }, 'a fresh report time for identical humidity (#11)');
 
   // A shower: the humidity rises fast.
   await haService('input_number', 'set_value', { entity_id: 'input_number.shower_rh', value: 59 });

@@ -12,6 +12,7 @@ const { WebSocketServer } = require('../smart_ventilation/app/node_modules/ws');
 function startFakeHa({ states = [], history = {}, token = 'test-token' } = {}) {
   const received = []; // every WebSocket message from the app
   const written = []; // every REST state write
+  const reportRequests = []; // read-only timestamp template requests
   const sockets = new Set();
   const statesById = new Map(states.map((s) => [s.entity_id, s]));
   let subscription = null; // state_changed
@@ -23,6 +24,18 @@ function startFakeHa({ states = [], history = {}, token = 'test-token' } = {}) {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => {
+      if (req.method === 'POST' && req.url === '/api/template' && req.headers.authorization === `Bearer ${token}`) {
+        const body = JSON.parse(Buffer.concat(chunks).toString());
+        reportRequests.push(body);
+        const reports = {};
+        for (const id of body.variables.entity_ids) {
+          const st = statesById.get(id);
+          if (st) reports[id] = st.last_reported;
+        }
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end(JSON.stringify(reports));
+        return;
+      }
       const m = req.url.match(/^\/api\/states\/(.+)$/);
       if (req.method === 'POST' && m && req.headers.authorization === `Bearer ${token}`) {
         written.push({ entity_id: m[1], ...JSON.parse(Buffer.concat(chunks).toString() || '{}') });
@@ -82,6 +95,7 @@ function startFakeHa({ states = [], history = {}, token = 'test-token' } = {}) {
     token,
     received,
     written,
+    reportRequests,
     stuck,
     failing,
     // The actions the app called: [{ service, entity_id, data }].
@@ -89,6 +103,12 @@ function startFakeHa({ states = [], history = {}, token = 'test-token' } = {}) {
       return received.filter((m) => m.type === 'call_service').map((m) => ({ service: `${m.domain}.${m.service}`, entity_id: m.target && m.target.entity_id, data: m.service_data }));
     },
     state(id) { return statesById.get(id); },
+    // HA stores an identical report without emitting state_changed.
+    reportState(entityId, at = Date.now()) {
+      const old = statesById.get(entityId);
+      if (!old) throw new Error(`Unknown entity ${entityId}`);
+      statesById.set(entityId, { ...old, last_reported: new Date(at).toISOString() });
+    },
     // A service call from someone else (for example a dashboard), like Home
     // Assistant does it: first the call_service event, then the new state,
     // but only when the state really changes. input_select.select_option only.

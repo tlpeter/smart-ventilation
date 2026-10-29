@@ -86,7 +86,9 @@ All numbers are starting points: tune them with the chart on Home and the Activi
 - **Live control** (off by default): see below.
 - **Reference sensors** (optional): humidity sensors in other rooms. The app uses their median. A rise in the whole house (weather) does not count as a shower, and a boost also stops when the room is back near the rest of the house.
 - **Night**: from / until, and whether the actuators' night maximum is used.
-- **Sensor timeout** (default 60 min): no reading for this long counts as a sensor problem. The app uses the time of the last report (`last_reported`), so a sensor that reports the same value still counts as alive.
+- **Sensor timeout** (default 120 min): no reading for this long counts as a sensor problem. An existing timeout choice is kept on update. The app reads the time of the last report (`last_reported`) again once a minute: an identical report does not send a state-change event in Home Assistant. Reading the state is not itself a new sensor report.
+- If a reading becomes too old during boost or afterrun, the app keeps that level and the frozen baseline, even past the usual time limit, until the sensor reports again. A last known humidity at or above the safety-net trigger also keeps ventilation on. The reason is shown on Home and in Activity, and the hold survives an app restart. **Off** still stops the zone. A missing, unavailable or non-numeric sensor still goes to Sensor problem and rest. Fresh readings restore the normal stop and time-limit checks.
+- **Showers today** counts a detected shower or bath at the start of the boost, including recovery from Sensor problem or Off. It does not wait for the room to dry. A safety-net boost without a fast rise is not counted as a shower, and no past showers are guessed from old humidity peaks.
 - **Dashboard controls** (off by default): see below.
 
 ## Live control

@@ -74,6 +74,11 @@ test('save writes settings.json', () => {
   assert.equal(settings.get().zones[0].id, 'shower');
 });
 
+test('sensor timeout defaults to 120 min and keeps a chosen timeout (#11)', () => {
+  assert.equal(settings.normalise({}).general.sensorTimeoutMin, 120);
+  assert.equal(settings.normalise({ general: { sensorTimeoutMin: 60 } }).general.sensorTimeoutMin, 60);
+});
+
 test('live control: off by default, every actuator live unless unticked', () => {
   const s = settings.normalise({
     actuators: [{ id: 'unit', type: 'fan' }, { id: 'v', type: 'number', live: false }, { id: 'w', type: 'number', live: 'no' }],

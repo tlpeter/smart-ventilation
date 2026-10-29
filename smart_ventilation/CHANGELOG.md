@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.11-dev
+
+- Fix: a sensor that reports the same humidity no longer looks silent just because Home Assistant sends no state-change event. The app reads sensor report times again once a minute. The default sensor timeout is now 120 minutes; an existing choice is kept. (#11)
+- If a reading becomes too old during boost or afterrun, ventilation stays at that level and the baseline stays frozen until the sensor reports again. An old high reading also keeps ventilation on. Home and Activity explain why; Off still stops the zone. A sensor that is missing or unavailable still goes to Sensor problem.
+- Showers today counts a detected shower immediately, also when the sensor recovers straight into a shower after a fault or Off. A safety-net boost alone is still not a shower.
+- Tests: constant 99.7%, identical reports without a state-change event, frozen baseline, recovery, restart during a sensor hold, and counting at the start.
+
 ## 0.3.10-dev
 
 - Home: with **Publish sensors** on, the Reference tile opens the app's own sensor `sensor.smart_ventilation_reference`: the reference value the app really uses (the middle value of your reference sensors). Without Publish sensors it opens the reference sensor itself, as before. (#10)
