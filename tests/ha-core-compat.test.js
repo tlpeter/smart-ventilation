@@ -175,13 +175,13 @@ async function run() {
   await json(`${HA_URL}/api/states/sensor.shower_humidity`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ state: '55', attributes: beforeReport.attributes }),
+    body: JSON.stringify({ state: beforeReport.state, attributes: beforeReport.attributes }),
   });
-  await until(async () => {
+  const identicalReport = await until(async () => {
     const currentReport = (await appApi('/api/diagnostics')).entities.find((e) => e.entity_id === 'sensor.shower_humidity');
-    assert.equal(currentReport.last_updated, beforeReport.last_updated, 'the value and attributes did not change');
-    return Date.parse(currentReport.last_reported) > Date.parse(beforeReport.last_reported);
+    return Date.parse(currentReport.last_reported) > Date.parse(beforeReport.last_reported) && currentReport;
   }, 'a fresh report time for identical humidity (#11)');
+  assert.equal(identicalReport.last_updated, beforeReport.last_updated, 'the value and attributes did not change');
 
   // A shower: the humidity rises fast.
   await haService('input_number', 'set_value', { entity_id: 'input_number.shower_rh', value: 59 });

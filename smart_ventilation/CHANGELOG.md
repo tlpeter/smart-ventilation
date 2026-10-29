@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.12-dev
+
+- Test fix: the real Home Assistant check now repeats the sensor's exact text value (for example `55.0`, not `55`), so it truly tests an identical report. A changed timestamp is reported directly instead of hidden by a timeout. The ventilation fix from 0.3.11-dev is unchanged. (#11)
+
 ## 0.3.11-dev
 
 - Fix: a sensor that reports the same humidity no longer looks silent just because Home Assistant sends no state-change event. The app reads sensor report times again once a minute. The default sensor timeout is now 120 minutes; an existing choice is kept. (#11)
