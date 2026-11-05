@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.13-dev
+
+- Tests: the real Home Assistant check now runs against Home Assistant Core 2026.11.0 (was 2026.10.4). No change to the app itself.
+
 ## 0.3.12-dev
 
 - Test fix: the real Home Assistant check now repeats the sensor's exact text value (for example `55.0`, not `55`), so it truly tests an identical report. A changed timestamp is reported directly instead of hidden by a timeout. The ventilation fix from 0.3.11-dev is unchanged. (#11)

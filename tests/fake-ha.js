@@ -51,11 +51,11 @@ function startFakeHa({ states = [], history = {}, token = 'test-token' } = {}) {
   wss.on('connection', (ws) => {
     sockets.add(ws);
     ws.on('close', () => sockets.delete(ws));
-    ws.send(JSON.stringify({ type: 'auth_required', ha_version: '2026.10.4' }));
+    ws.send(JSON.stringify({ type: 'auth_required', ha_version: '2026.11.0' }));
     ws.on('message', (raw) => {
       const msg = JSON.parse(raw);
       if (msg.type === 'auth') {
-        ws.send(JSON.stringify(msg.access_token === token ? { type: 'auth_ok', ha_version: '2026.10.4' } : { type: 'auth_invalid', message: 'bad token' }));
+        ws.send(JSON.stringify(msg.access_token === token ? { type: 'auth_ok', ha_version: '2026.11.0' } : { type: 'auth_invalid', message: 'bad token' }));
         return;
       }
       received.push(msg);
