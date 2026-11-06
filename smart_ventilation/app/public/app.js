@@ -137,13 +137,14 @@ function zoneCard(z) {
       ${tile('Rise in window', f.rise === null ? '–' : (f.rise >= 0 ? '+' : '') + f.rise, [e.rise])}
       ${f.reference !== null ? tile('Reference', fmt(f.reference, '%'), e.reference ? [e.reference] : e.references) : ''}
       ${f.temperature !== null ? tile('Temperature', fmt(f.temperature, ' °C'), [e.temperature]) : ''}
+      ${f.dewPoint !== null ? tile('Dew point', fmt(f.dewPoint, ' °C'), e.dewPoint ? [e.dewPoint] : [e.humidity, e.temperature], f.detectOn === 'dewpoint' ? `rise ${f.dewPointRise >= 0 ? '+' : ''}${f.dewPointRise} °C` : '') : ''}
       ${e.showers ? tile('Showers today', z.showersToday, [e.showers]) : `<a class="figure link" href="#" data-go-activity title="See the Activity log"><span>Showers today</span><b>${z.showersToday}</b></a>`}
     </div>
     ${devicesRow(z)}
     <div class="muted small">${since}</div>
     <div class="chart-head"><span class="small muted">${RANGE_TITLE[chartHours]}</span>${rangeButtons()}</div>
     <svg class="chart" id="chart-${esc(z.id)}" viewBox="0 0 600 170" role="img" aria-label="Humidity, ${RANGE_TITLE[chartHours].toLowerCase()}"></svg>
-    <div class="legend"><span><i style="background:var(--accent)"></i>humidity</span><span><i style="background:var(--muted)"></i>reference</span>${chartHours === 3 ? '<span><i style="background:var(--warning)"></i>baseline</span>' : ''}<span><i style="background:rgba(var(--rgb-accent),.3);height:8px"></i>boost</span><span><i style="background:rgba(var(--rgb-good),.3);height:8px"></i>afterrun</span></div>
+    <div class="legend"><span><i style="background:var(--accent)"></i>humidity</span>${f.dewPoint !== null ? '<span><i style="background:var(--dew)"></i>dew point (°C, right)</span>' : ''}<span><i style="background:var(--muted)"></i>reference</span>${chartHours === 3 ? '<span><i style="background:var(--warning)"></i>baseline</span>' : ''}<span><i style="background:rgba(var(--rgb-accent),.3);height:8px"></i>boost</span><span><i style="background:rgba(var(--rgb-good),.3);height:8px"></i>afterrun</span></div>
   </div>`;
 }
 
@@ -203,6 +204,8 @@ function devicesRow(z) {
 function liveLine(a) {
   const c = a.control;
   if (!c) return 'Live · waiting for the first value';
+  if (!a.available || c.away) return '<span style="color:var(--warning)">Live · the device is unavailable. The app sends the value again when it is back.</span>';
+  if (c.done && a.atTarget === false) return '<span style="color:var(--warning)">Live · set earlier, but the device is at another value now (changed by hand or by another automation). The app leaves it until the next change.</span>';
   if (c.gaveUp) return `<span style="color:var(--bad)">Live · the device did not follow after ${c.tries} tries. The app tries again at the next change.</span>`;
   if (c.done) return c.tries ? '<span class="ok">Live · set ✓</span>' : '<span class="ok">Live · already at this value</span>';
   if (c.error) return `<span style="color:var(--bad)">Live · could not set: ${esc(c.error)}</span> (try ${c.tries} of ${status.maxTries})`;
@@ -259,7 +262,8 @@ async function drawChart(zoneId) {
   }
   // Labels stay about 11 px on screen, also on a narrow phone.
   const fs = Math.min(24, Math.max(11, 11 * 600 / (svg.clientWidth || 600)));
-  const W = 600, H = 170 + fs, L = 12 + fs * 2.6, R = 8, T = 8, B = 10 + fs * 1.2;
+  const dp = (c.dewPoint || []).filter((p) => Number.isFinite(p[1]));
+  const W = 600, H = 170 + fs, L = 12 + fs * 2.6, R = dp.length ? 12 + fs * 2.6 : 8, T = 8, B = 10 + fs * 1.2;
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   const values = [...c.humidity, ...c.reference].map((p) => p[1]);
   if (c.baseline !== null) values.push(c.baseline);
@@ -311,6 +315,21 @@ async function drawChart(zoneId) {
   if (c.baseline !== null) out += `<line x1="${L}" x2="${W - R}" y1="${Y(c.baseline)}" y2="${Y(c.baseline)}" style="stroke:var(--warning)" stroke-dasharray="5 4"/>`;
   if (c.reference.length) out += `<path d="${step(c.reference)}" fill="none" style="stroke:var(--muted)" stroke-width="1.5"/>`;
   if (c.humidity.length) out += `<path d="${step(c.humidity)}" fill="none" style="stroke:var(--accent)" stroke-width="2.2"/>`;
+  if (dp.length) {
+    // The dew point has its own scale in °C, on the right.
+    const dv = dp.map((p) => p[1]);
+    const dlo = Math.floor(Math.min(...dv) - 1);
+    const dstep = Math.max(1, Math.ceil((Math.max(...dv) + 1 - dlo) / ticks));
+    const dhi = dlo + dstep * ticks;
+    const DY = (v) => T + (dhi - v) / (dhi - dlo) * (H - T - B);
+    for (let i = 0; i <= ticks; i++) {
+      const v = dlo + dstep * i;
+      out += `<text x="${W - R + 6}" y="${DY(v) + fs / 3}" text-anchor="start" font-size="${fs.toFixed(1)}" style="fill:var(--dew)">${v}°</text>`;
+    }
+    let d = `M${X(dp[0][0]).toFixed(1)} ${DY(dp[0][1]).toFixed(1)}`;
+    for (let i = 1; i < dp.length; i++) d += `H${X(dp[i][0]).toFixed(1)}V${DY(dp[i][1]).toFixed(1)}`;
+    out += `<path d="${d}H${X(c.to).toFixed(1)}" fill="none" style="stroke:var(--dew)" stroke-width="1.6" stroke-dasharray="6 3"/>`;
+  }
   svg.innerHTML = out;
 }
 
@@ -355,7 +374,7 @@ let draft = null;
 let ents = null;
 let dirty = false;
 
-const ZONE_DEFAULTS = { riseThreshold: 8, riseWindowMin: 5, absoluteTrigger: 85, stopMargin: 3, minBoostMin: 5, maxBoostMin: 60, afterrunMin: 5, baselineWindowMin: 60, confirmWithTemperature: false, temperatureRise: 1 };
+const ZONE_DEFAULTS = { riseThreshold: 8, riseWindowMin: 5, absoluteTrigger: 85, stopMargin: 3, minBoostMin: 5, maxBoostMin: 60, afterrunMin: 5, baselineWindowMin: 60, confirmWithTemperature: false, temperatureRise: 1, detectOn: 'humidity', dewPointRise: 2 };
 
 let dash = null; // dashboard controls status (from /api/status)
 
@@ -531,6 +550,11 @@ function zonesView() {
         ${num('Temperature rise (°C)', 'temperatureRise', z.temperatureRise, 0.1, 10, 0.1)}
       </div>
       <label class="check"><input type="checkbox" data-k="confirmWithTemperature" ${z.confirmWithTemperature ? 'checked' : ''}>Only count a rise as a shower when the temperature also rises</label>
+      <div class="grid2">
+        <div class="field"><label>Detect a shower on</label><select data-k="detectOn"><option value="humidity" ${z.detectOn !== 'dewpoint' ? 'selected' : ''}>Humidity rise (points)</option><option value="dewpoint" ${z.detectOn === 'dewpoint' ? 'selected' : ''}>Dew point rise (°C)</option></select>
+          <div class="hint">The dew point only goes up when there is more water vapour, not when the room just warms up or cools down. Needs a temperature sensor. The reference sensors are then not used for the rise; stopping still uses the humidity.</div>${z.detectOn === 'dewpoint' && !z.temperature ? '<div class="warn small">⚠ Choose a temperature sensor for this zone.</div>' : ''}</div>
+        ${num('Dew point rise trigger (°C)', 'dewPointRise', z.dewPointRise, 0.5, 15, 0.1, 'Used with "Dew point rise". About 2 °C is like 8 points of humidity.')}
+      </div>
     </details>
   </div>`).join('');
   return `${zones || '<div class="card muted">No zones yet. Add one per room, for example Shower and Bathroom.</div>'}

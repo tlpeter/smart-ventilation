@@ -104,6 +104,8 @@ function normalise(raw) {
       baselineWindowMin: num(z && z.baselineWindowMin, d.baselineWindowMin, 15, 120),
       confirmWithTemperature: !!(z && z.confirmWithTemperature),
       temperatureRise: num(z && z.temperatureRise, d.temperatureRise, 0.1, 10),
+      detectOn: z && z.detectOn === 'dewpoint' ? 'dewpoint' : 'humidity',
+      dewPointRise: num(z && z.dewPointRise, d.dewPointRise, 0.5, 15),
     };
   });
   const g = src.general && typeof src.general === 'object' ? src.general : {};
@@ -131,6 +133,7 @@ function validate(s, meta) {
     if (!m) errors.push(`${z.name}: ${z.humidity} was not found in Home Assistant`);
     else if (m.domain !== 'sensor') errors.push(`${z.name}: ${z.humidity} is not a sensor`);
     if (z.temperature && !meta.get(z.temperature)) errors.push(`${z.name}: ${z.temperature} was not found in Home Assistant`);
+    if (z.detectOn === 'dewpoint' && !z.temperature) errors.push(`${z.name}: detecting on the dew point needs a temperature sensor`);
     if (!z.actuators.length) errors.push(`${z.name}: choose at least one actuator`);
   }
   for (const a of s.actuators) errors.push(...validateActuator(a, meta.get(a.entity)));

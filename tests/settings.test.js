@@ -117,3 +117,14 @@ test('warnings: a valve in more than one zone, not a shared fan (issue #7)', () 
   s.zones[1].enabled = false;
   assert.deepEqual(settings.warnings(s), [], 'a zone that is off does not count');
 });
+
+test('dew point detection: humidity by default, needs a temperature sensor', () => {
+  const base = { actuators: [{ name: 'Ventilation unit', type: 'fan', entity: 'fan.open_air_mini', idle: 10, boost: 75, afterrun: 50 }] };
+  let s = settings.normalise({ ...base, zones: [{ name: 'Shower', humidity: 'sensor.shower_humidity', actuators: ['ventilation_unit'], detectOn: 'nonsense', dewPointRise: 99 }] });
+  assert.equal(s.zones[0].detectOn, 'humidity');
+  assert.equal(s.zones[0].dewPointRise, 15);
+  s = settings.normalise({ ...base, zones: [{ name: 'Shower', humidity: 'sensor.shower_humidity', actuators: ['ventilation_unit'], detectOn: 'dewpoint' }] });
+  assert.equal(s.zones[0].detectOn, 'dewpoint');
+  assert.equal(s.zones[0].dewPointRise, 2);
+  assert.ok(settings.validate(s, meta).some((e) => /dew point needs a temperature sensor/.test(e)));
+});

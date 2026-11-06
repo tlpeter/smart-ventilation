@@ -90,3 +90,45 @@ test('ha.js: only the six actions, only on allowed entities', async () => {
   await assert.rejects(ha.callAction({ service: 'fan.set_percentage', data: {}, target: { entity_id: 'fan.y' } }), /may not be changed/);
   await assert.rejects(ha.callAction({ service: 'fan.set_percentage', data: { percentage: 50 }, target: { entity_id: 'fan.x' } }), /Not connected/, 'allowed, but not connected here');
 });
+
+test('a device that was unavailable gets the value again when it is back', () => {
+  let r = control.plan([{ id: 'v', target: 5, current: 0, tol: 5 }], {}, 0);
+  r = control.plan([{ id: 'v', target: 5, current: 5, tol: 5 }], r.memory, 1000);
+  assert.equal(r.memory.v.done, true);
+  // The device restarts: unavailable, then back at its start value 0.
+  r = control.plan([{ id: 'v', target: 5, current: null, tol: 5, available: false }], r.memory, 2000);
+  assert.deepEqual(r.send, []);
+  assert.equal(r.memory.v.away, true);
+  r = control.plan([{ id: 'v', target: 5, current: null, tol: 5, available: false }], r.memory, R * 10);
+  assert.deepEqual(r.send, [], 'no tries while it is away');
+  assert.equal(r.memory.v.gaveUp, false);
+  r = control.plan([{ id: 'v', target: 10, current: 0, tol: 0.5 }], { v: { ...r.memory.v, target: 10 } }, R * 11);
+  assert.deepEqual(r.send, ['v']);
+  assert.deepEqual(r.back, ['v']);
+  assert.equal(r.memory.v.away, undefined);
+  assert.equal(r.memory.v.tries, 1);
+});
+
+test('back after being unavailable, already at the value: nothing to send', () => {
+  const mem = { v: { target: 5, tries: 1, at: 0, done: true, gaveUp: false, away: true } };
+  const r = control.plan([{ id: 'v', target: 5, current: 5, tol: 0.5 }], mem, 1000);
+  assert.deepEqual(r.send, []);
+  assert.deepEqual(r.back, []);
+  assert.equal(r.memory.v.done, true);
+  assert.equal(r.memory.v.away, undefined);
+});
+
+test('a device that gave up gets a new chance after a restart', () => {
+  const mem = { v: { target: 100, tries: 3, at: 0, done: false, gaveUp: true, away: true } };
+  const r = control.plan([{ id: 'v', target: 100, current: 0, tol: 0.5 }], mem, 1000);
+  assert.deepEqual(r.send, ['v']);
+  assert.equal(r.memory.v.gaveUp, false);
+});
+
+test('available: unavailable, unknown and missing are not', () => {
+  assert.equal(control.available({ state: '5' }), true);
+  assert.equal(control.available({ state: 'off' }), true);
+  assert.equal(control.available({ state: 'unavailable' }), false);
+  assert.equal(control.available({ state: 'unknown' }), false);
+  assert.equal(control.available(null), false);
+});

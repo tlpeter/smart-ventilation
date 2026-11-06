@@ -11,6 +11,9 @@
 // - Once the device has the value, the app leaves it alone until the advice
 //   changes. So a change by hand (or by another automation) stays, until the
 //   next shower or the end of one.
+// - A device that was unavailable (a restart, a lost wifi connection) often
+//   comes back at its own start value. Then the app sends the advice again,
+//   as if the advice were new. While a device is unavailable no tries count.
 
 const RETRY_MS = Math.max(50, Number(process.env.SV_RETRY_MS) || 2 * 60 * 1000); // SV_RETRY_MS: tests only
 const MAX_TRIES = 3;
@@ -32,16 +35,34 @@ function reached(current, target, tol) {
   return String(current) === String(target);
 }
 
-// items: [{ id, target, current, tol }]
-// memory: { [id]: { target, tries, at, done, gaveUp } }
-// Returns { memory, send: [id], gaveUp: [id] }. memory is a new object.
+// items: [{ id, target, current, tol, available }] (available: false when
+// the entity is unavailable, unknown or missing; left out means available)
+// memory: { [id]: { target, tries, at, done, gaveUp, away } }
+// Returns { memory, send: [id], gaveUp: [id], back: [id] }. memory is a new
+// object. back: devices that came back and get the advice again.
 function plan(items, memory, now) {
   const next = {};
   const send = [];
   const gaveUp = [];
+  const back = [];
   for (const it of items) {
     const m = memory[it.id];
+    if (it.available === false) {
+      // Nothing to send to: remember that it was away, and wait.
+      if (m) next[it.id] = { ...m, away: true };
+      continue;
+    }
     const atTarget = reached(it.current, it.target, it.tol);
+    if (m && m.away && String(m.target) === String(it.target)) {
+      // Back after being unavailable: send the advice again if needed.
+      if (atTarget) next[it.id] = { target: it.target, tries: m.tries, at: now, done: true, gaveUp: false };
+      else {
+        next[it.id] = { target: it.target, tries: 1, at: now, done: false, gaveUp: false };
+        send.push(it.id);
+        back.push(it.id);
+      }
+      continue;
+    }
     if (!m || String(m.target) !== String(it.target)) {
       // New advice.
       if (atTarget) next[it.id] = { target: it.target, tries: 0, at: now, done: true, gaveUp: false };
@@ -64,12 +85,18 @@ function plan(items, memory, now) {
     }
     next[it.id] = n;
   }
-  return { memory: next, send, gaveUp };
+  return { memory: next, send, gaveUp, back };
 }
 
 // Hand back at rest: the actuators the app has moved away from rest, and
 // which are not at their rest value now. A value set by hand while the app
 // asked for rest is left alone. items: [{ id, rest, current, tol }]
+// Is the entity there to send to? A missing state, unavailable or unknown
+// is not.
+function available(st) {
+  return !!st && st.state !== 'unavailable' && st.state !== 'unknown';
+}
+
 function handBack(items, memory) {
   return items.filter((it) => {
     const m = memory[it.id];
@@ -77,4 +104,4 @@ function handBack(items, memory) {
   }).map((it) => it.id);
 }
 
-module.exports = { RETRY_MS, MAX_TRIES, tolerance, reached, plan, handBack };
+module.exports = { RETRY_MS, MAX_TRIES, tolerance, reached, plan, handBack, available };

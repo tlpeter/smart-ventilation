@@ -208,6 +208,36 @@ test('live control against a fake Home Assistant', async (t) => {
     await until(() => valve(V_SHOWER) === 100, 'live again');
   });
 
+  await t.test('a device that restarts gets the value again', async () => {
+    // Like an ESPHome valve that loses wifi and boots at 0: it goes
+    // unavailable, then comes back at its own start value.
+    const before = sends(V_SHOWER, 100);
+    ha.setState(V_SHOWER, 'unavailable', {});
+    const away = await until(async () => { const s = await get('/api/status'); return s.actuators[1].control.away && s; }, 'marked away');
+    assert.equal(away.actuators[1].available, false);
+    await sleep(RETRY_MS * 2);
+    assert.equal(sends(V_SHOWER, 100), before, 'nothing sent while it is away');
+    ha.setState(V_SHOWER, 0, { min: 0, max: 100, step: 1 });
+    await until(() => valve(V_SHOWER) === 100, 'sent again after coming back');
+    assert.equal(sends(V_SHOWER, 100) - before, 1);
+    const log = await get('/api/log');
+    assert.ok(log.some((e) => e.type === 'back' && e.actuator === 'v_shower'), 'noted in the log');
+    // Back at the right value: nothing to send.
+    const n = sends(V_SHOWER);
+    ha.setState(V_SHOWER, 'unavailable', {});
+    await sleep(150);
+    ha.setState(V_SHOWER, 100, { min: 0, max: 100, step: 1 });
+    await sleep(RETRY_MS * 2);
+    assert.equal(sends(V_SHOWER), n, 'already at the value');
+    // A change by hand (without a restart) still stays.
+    ha.setState(V_SHOWER, 40, { min: 0, max: 100, step: 1 });
+    await sleep(RETRY_MS * 2);
+    assert.equal(valve(V_SHOWER), 40, 'a change by hand stays');
+    const st = await get('/api/status');
+    assert.equal(st.actuators[1].atTarget, false, 'shown as not at the target');
+    ha.setState(V_SHOWER, 100, { min: 0, max: 100, step: 1 });
+  });
+
   await t.test('safety: only the six actions, only on live actuators', async () => {
     for (const a of ha.actions()) {
       assert.ok(['fan.set_percentage', 'number.set_value'].includes(a.service), a.service);

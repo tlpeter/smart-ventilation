@@ -13,11 +13,12 @@ A Home Assistant app (add-on) that ventilates showers and bathrooms on the **hum
 - **Afterrun**: a few minutes at an in-between level, then back to rest.
 - **More rooms, shared fan**: each room (zone) has its own sensor and valve. A fan used by more zones gets the highest level any zone asks for, so the bathroom never turns the fan down while the shower is still boosting.
 - **Valves of the other rooms**: while one zone boosts, the valve of another zone can go to a low level (for example 0–25%), so the air comes from the wet room.
+- **Dew point** (with a temperature sensor): shown per room, and optionally used for the shower test. The dew point does not rise when a room only cools down, so fewer false showers.
 - **Reference sensors** (optional): humidity sensors in other rooms. When the whole house gets humid (weather), that is not a shower.
 - **More zones at once** (optional): a higher fan level when the shower and the bathroom boost at the same time.
 - **Night maximum** (optional): a quieter maximum level during the night.
 - **Dashboard controls** (optional): per zone Auto / Off, a "boost now" button and the main settings as helpers in Home Assistant, in a YAML package the app writes itself. Put them on any dashboard.
-- **Live control** (off by default): the app really sets the fan and valves, per actuator on or off. It only sends a value when it changes, tries again if a device does not follow, and sets everything back to rest when you turn it off or the app stops.
+- **Live control** (off by default): the app really sets the fan and valves, per actuator on or off. It only sends a value when it changes, tries again if a device does not follow, sends it again when a device comes back after a restart, and sets everything back to rest when you turn it off or the app stops.
 - **Any brand**: the fan, valves and sensors are chosen in the app. Supported actuator types: fan (percentage or preset), number, select and switch.
 
 ## Installation

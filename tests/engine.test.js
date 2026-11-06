@@ -322,3 +322,71 @@ test('a boost from the safety net stays a safety-net boost without a fast rise, 
   assert.equal(b.state, 'boost');
   assert.equal(b.trigger, 'humid', 'after the rise window the start stays as it was');
 });
+
+// ---------------------------------------------------------------------------
+// Dew point
+// ---------------------------------------------------------------------------
+
+test('the dew point from temperature and humidity (Magnus)', () => {
+  assert.equal(Math.round(engine.dewPoint(17.5, 63.89) * 10) / 10, 10.6);
+  assert.equal(engine.dewPoint(20, 100), 20);
+  assert.equal(engine.dewPoint(20, 0), null);
+  assert.equal(engine.dewPoint(null, 50), null);
+  const dp = engine.dewPointHistory(steady(55), steady(20, [[2, 21]]));
+  assert.ok(dp.length > 1);
+  assert.ok(engine.valueAt(dp, T0 + 2 * MIN) > engine.valueAt(dp, T0));
+});
+
+test('a room that cools down: the humidity rises, the dew point does not', () => {
+  // 20 °C at 55 % and 16 °C at 70.7 % hold the same water vapour.
+  const h = steady(55, [[3, 70.7]]);
+  const temp = steady(20, [[3, 16]]);
+  const byHumidity = engine.newZoneState(T0);
+  engine.evaluateZone({}, byHumidity, input(h, 3, { temperature: { history: temp } }));
+  assert.equal(byHumidity.state, 'boost', 'on humidity this looks like a shower');
+  const byDewPoint = engine.newZoneState(T0);
+  engine.evaluateZone({ detectOn: 'dewpoint' }, byDewPoint, input(h, 3, { temperature: { history: temp } }));
+  assert.equal(byDewPoint.state, 'idle', 'on the dew point it is not');
+});
+
+test('a shower on the dew point starts a boost', () => {
+  const h = steady(55, [[3, 75]]);
+  const temp = steady(20, [[3, 22]]);
+  const st = engine.newZoneState(T0);
+  const { change } = engine.evaluateZone({ detectOn: 'dewpoint' }, st, input(h, 3, { temperature: { history: temp } }));
+  assert.equal(st.state, 'boost');
+  assert.equal(change.trigger, 'shower');
+  assert.match(st.reason, /dew point \+6\.7 °C/);
+  // Stopping still uses the humidity baseline.
+  assert.equal(st.baseline, 55);
+});
+
+test('the dew point rise trigger is a setting', () => {
+  const h = steady(55, [[3, 75]]);
+  const temp = steady(20, [[3, 22]]);
+  const st = engine.newZoneState(T0);
+  engine.evaluateZone({ detectOn: 'dewpoint', dewPointRise: 8 }, st, input(h, 3, { temperature: { history: temp } }));
+  assert.equal(st.state, 'idle');
+});
+
+test('dew point detection without a temperature sensor uses the humidity', () => {
+  const h = steady(55, [[1, 58], [3, 64]]);
+  const st = engine.newZoneState(T0);
+  engine.evaluateZone({ detectOn: 'dewpoint' }, st, input(h, 3));
+  assert.equal(st.state, 'boost');
+  assert.match(st.reason, /\+9 points/);
+});
+
+test('the figures show the dew point when there is a temperature sensor', () => {
+  const h = steady(64);
+  const temp = steady(17.5);
+  const st = engine.newZoneState(T0);
+  let f = engine.zoneFigures({}, st, input(h, 0, { temperature: { history: temp } }));
+  assert.equal(f.dewPoint, 10.6);
+  assert.equal(f.dewPointRise, 0);
+  assert.equal(f.detectOn, 'humidity');
+  f = engine.zoneFigures({ detectOn: 'dewpoint' }, st, input(h, 0, { temperature: { history: temp } }));
+  assert.equal(f.detectOn, 'dewpoint');
+  f = engine.zoneFigures({}, st, input(h, 0));
+  assert.equal(f.dewPoint, null);
+});

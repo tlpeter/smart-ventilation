@@ -24,6 +24,10 @@ const ZONE_DEFAULTS = {
   baselineWindowMin: 60,
   confirmWithTemperature: false,
   temperatureRise: 1, // °C within the rise window
+  // What the shower test looks at: 'humidity' (the rise in % RH) or
+  // 'dewpoint' (the rise of the dew point, needs a temperature sensor).
+  detectOn: 'humidity',
+  dewPointRise: 2, // °C within the rise window
 };
 
 // ---------------------------------------------------------------------------
@@ -93,6 +97,41 @@ function baselineAt(history, now, windowMs, excludeMs) {
   const values = valuesBetween(history, now - windowMs, now - excludeMs);
   const m = median(values);
   return m === null ? valueAt(history, now) : m;
+}
+
+// ---------------------------------------------------------------------------
+// Dew point
+// ---------------------------------------------------------------------------
+
+// The dew point in °C from the temperature (°C) and relative humidity (%),
+// with the Magnus formula. Unlike the relative humidity, it does not change
+// when the room only warms up or cools down: it only goes up when there is
+// more water vapour in the air.
+function dewPoint(t, rh) {
+  if (!Number.isFinite(t) || !Number.isFinite(rh) || rh <= 0) return null;
+  const a = 17.62;
+  const b = 243.12;
+  const g = Math.log(Math.min(rh, 100) / 100) + (a * t) / (b + t);
+  return (b * g) / (a - g);
+}
+
+// A dew point history from a humidity and a temperature history: a new point
+// at every time one of the two changes.
+function dewPointHistory(humHist, tempHist) {
+  if (!humHist || !tempHist || !humHist.length || !tempHist.length) return [];
+  const times = [...new Set([...humHist, ...tempHist].map((p) => p.t))].sort((x, y) => x - y);
+  const out = [];
+  for (const t of times) {
+    const v = dewPoint(valueAt(tempHist, t), valueAt(humHist, t));
+    if (v !== null) out.push({ t, v });
+  }
+  return out;
+}
+
+// Does this zone use the dew point for the shower test? Only when it is
+// chosen and a temperature sensor gives readings.
+function usesDewPoint(cfg, input) {
+  return cfg.detectOn === 'dewpoint' && !!(input.temperature && input.temperature.history.length);
 }
 
 function round1(x) {
@@ -256,14 +295,24 @@ function evaluateZone(cfgIn, st, input) {
 // The shower test: a fast rise of the room itself (the house rise taken
 // off), and warmth too when that check is on.
 function showerRise(cfg, input, now, windowMs) {
-  const rise = riseInWindow(input.humidity.history, now, windowMs);
-  const refRise = input.reference && input.reference.history.length
-    ? Math.max(0, riseInWindow(input.reference.history, now, windowMs)) : 0;
-  const ownRise = rise - refRise;
   let tempOk = true;
   if (cfg.confirmWithTemperature && input.temperature && input.temperature.history.length) {
     tempOk = riseInWindow(input.temperature.history, now, windowMs) >= cfg.temperatureRise;
   }
+  if (usesDewPoint(cfg, input)) {
+    // The dew point already takes warming and cooling into account. The
+    // reference sensors only give humidity, so no house rise is taken off.
+    const dp = dewPointHistory(input.humidity.history, input.temperature.history);
+    const rise = riseInWindow(dp, now, windowMs);
+    if (rise >= cfg.dewPointRise && tempOk) {
+      return { kind: 'shower', reason: `Shower detected: dew point +${round1(rise)} °C in ${cfg.riseWindowMin} min` };
+    }
+    return null;
+  }
+  const rise = riseInWindow(input.humidity.history, now, windowMs);
+  const refRise = input.reference && input.reference.history.length
+    ? Math.max(0, riseInWindow(input.reference.history, now, windowMs)) : 0;
+  const ownRise = rise - refRise;
   if (ownRise >= cfg.riseThreshold && tempOk) {
     const extra = refRise > 0 ? ` (house rose ${round1(refRise)})` : '';
     return { kind: 'shower', reason: `Shower detected: +${round1(ownRise)} points in ${cfg.riseWindowMin} min${extra}` };
@@ -293,6 +342,7 @@ function zoneFigures(cfgIn, st, input) {
   const windowMs = cfg.riseWindowMin * MIN;
   const hist = (input.humidity && input.humidity.history) || [];
   const refHist = input.reference && input.reference.history.length ? input.reference.history : null;
+  const dpHist = input.temperature ? dewPointHistory(hist, input.temperature.history) : [];
   return {
     humidity: round1(valueAt(hist, now)),
     temperature: input.temperature ? round1(valueAt(input.temperature.history, now)) : null,
@@ -301,6 +351,9 @@ function zoneFigures(cfgIn, st, input) {
     referenceRise: refHist ? round1(riseInWindow(refHist, now, windowMs)) : null,
     baseline: st.baseline !== null ? st.baseline : round1(baselineAt(hist, now, cfg.baselineWindowMin * MIN, windowMs)),
     baselineFrozen: st.baseline !== null,
+    dewPoint: dpHist.length ? round1(valueAt(dpHist, now)) : null,
+    dewPointRise: dpHist.length ? round1(riseInWindow(dpHist, now, windowMs)) : null,
+    detectOn: usesDewPoint(cfg, input) ? 'dewpoint' : 'humidity',
   };
 }
 
@@ -313,6 +366,9 @@ module.exports = {
   riseInWindow,
   baselineAt,
   median,
+  dewPoint,
+  dewPointHistory,
+  usesDewPoint,
   newZoneState,
   evaluateZone,
   zoneFigures,

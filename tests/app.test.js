@@ -273,7 +273,12 @@ test('the app against a fake Home Assistant', async (t) => {
     assert.equal(showers.state, '1');
     assert.equal(showers.attributes.unit_of_measurement, 'showers');
     const st = await get('/api/status');
-    assert.deepEqual(st.zones[0].entities, { humidity: 'sensor.shower_humidity', temperature: 'sensor.shower_temperature', references: ['sensor.hall_humidity'], baseline: 'sensor.smart_ventilation_shower_baseline', rise: 'sensor.smart_ventilation_shower_rise', showers: 'sensor.smart_ventilation_shower_showers_today', reference: 'sensor.smart_ventilation_reference' });
+    assert.deepEqual(st.zones[0].entities, { humidity: 'sensor.shower_humidity', temperature: 'sensor.shower_temperature', references: ['sensor.hall_humidity'], baseline: 'sensor.smart_ventilation_shower_baseline', rise: 'sensor.smart_ventilation_shower_rise', showers: 'sensor.smart_ventilation_shower_showers_today', reference: 'sensor.smart_ventilation_reference', dewPoint: 'sensor.smart_ventilation_shower_dew_point' });
+    // The dew point of a zone with a temperature sensor.
+    const dew = last('sensor.smart_ventilation_shower_dew_point');
+    assert.ok(dew && Number.isFinite(Number(dew.state)), 'dew point is a number');
+    assert.equal(dew.attributes.unit_of_measurement, '°C');
+    assert.equal(Number(dew.state), st.zones[0].figures.dewPoint);
     // The reference the app uses (issue #10).
     const ref = last('sensor.smart_ventilation_reference');
     assert.equal(Number(ref.state), st.zones[0].figures.reference);

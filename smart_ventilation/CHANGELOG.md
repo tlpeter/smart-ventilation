@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.14-dev
+
+- New: the **dew point** per zone, from the zone's own humidity and temperature sensor. Home shows it as a tile and as a dashed line in the chart (°C, on the right). With **Publish sensors** on there is a new sensor `sensor.smart_ventilation_<zone>_dew_point`.
+- New option per zone (Settings › Zones › Detection and timing): **Detect a shower on** humidity rise (as before, the default) or **dew point rise** (°C, default 2 °C). The dew point does not rise when a room only cools down, so that gives fewer false showers. Needs a temperature sensor. Stopping and the safety net still use the humidity.
+- Fix (Live control): a fan or valve that was unavailable (a restart or lost wifi) and came back at its own start value, for example a valve at 0 after recalibrating, now gets the advice again. Before, the app kept saying "set ✓" while the device stood at 0. While a device is unavailable no tries are counted, and Activity notes that it is back.
+- Home: an actuator shows when it is unavailable, or when it is at another value than the app set (by hand or another automation), instead of "set ✓".
+- Tests: dew point formula, a room that cools down, a shower on the dew point, the setting, the new sensor, and a valve that restarts against the fake Home Assistant.
+
 ## 0.3.13-dev
 
 - Tests: the real Home Assistant check now runs against Home Assistant Core 2026.11.0 (was 2026.10.4). No change to the app itself.

@@ -138,6 +138,7 @@ function onState(entityId, st, evaluateNow = true) {
   if (st) entityStates.set(entityId, st);
   else entityStates.delete(entityId);
   if (started) dashboard.onState(entityId, st);
+  if (started && actuatorAvailability(entityId, st) && evaluateNow) { evaluate(); return; }
   if (!trackedEntities().has(entityId)) return;
   const v = numericState(st);
   if (v !== null) {
@@ -362,18 +363,40 @@ async function sendValue(a, value, level, why, tries) {
   }
 }
 
+// A live actuator went away or came back. Away: remember it right away, so
+// a quick restart between two evaluations is not missed. Back: returns true,
+// so the advice is sent again now (control.plan decides).
+function actuatorAvailability(entityId, st) {
+  let back = false;
+  for (const a of settings.get().actuators) {
+    if (a.entity !== entityId || !controlMemory[a.id]) continue;
+    if (!control.available(st)) controlMemory[a.id] = { ...controlMemory[a.id], away: true };
+    else if (controlMemory[a.id].away) back = true;
+  }
+  return back;
+}
+
 // Send what the advice asks, to the live actuators (see control.js).
 function drive(t) {
   if (!ha.state.connected) return;
   const s = settings.get();
   const acts = s.actuators.filter((a) => isLive(a, s) && advice[a.id]);
-  const items = acts.map((a) => ({ id: a.id, target: advice[a.id].value, current: actuators.currentValue(a, entityStates.get(a.entity)), tol: toleranceOf(a) }));
+  const items = acts.map((a) => {
+    const st = entityStates.get(a.entity);
+    return { id: a.id, target: advice[a.id].value, current: actuators.currentValue(a, st), tol: toleranceOf(a), available: control.available(st) };
+  });
   const r = control.plan(items, controlMemory, t);
   controlMemory = r.memory;
+  for (const id of r.back) {
+    const a = acts.find((x) => x.id === id);
+    const reason = `${a.name} is back after being unavailable, at ${actuators.currentValue(a, entityStates.get(a.entity))}: sending ${advice[id].value} again`;
+    addLog({ type: 'back', actuator: id, name: a.name, value: advice[id].value, reason });
+    ha.log(reason);
+  }
   for (const id of r.send) {
     const a = acts.find((x) => x.id === id);
     const d = advice[id];
-    sendValue(a, d.value, d.level, d.why, controlMemory[id].tries);
+    sendValue(a, d.value, d.level, r.back.includes(id) ? `${d.why}; back after being unavailable` : d.why, controlMemory[id].tries);
   }
   for (const id of r.gaveUp) {
     const a = acts.find((x) => x.id === id);
@@ -462,6 +485,7 @@ async function publish(t) {
     items.push([`sensor.smart_ventilation_${z.id}_state`, st.state, { friendly_name: `${z.name} ventilation state`, reason: st.reason, icon: 'mdi:fan' }]);
     items.push([`sensor.smart_ventilation_${z.id}_baseline`, fig.baseline ?? 'unknown', { friendly_name: `${z.name} humidity baseline`, unit_of_measurement: '%', state_class: 'measurement', icon: 'mdi:water-percent', frozen: fig.baselineFrozen }]);
     items.push([`sensor.smart_ventilation_${z.id}_rise`, fig.rise ?? 'unknown', { friendly_name: `${z.name} humidity rise`, unit_of_measurement: 'points', state_class: 'measurement', icon: 'mdi:trending-up', window_min: z.riseWindowMin }]);
+    if (z.temperature) items.push([`sensor.smart_ventilation_${z.id}_dew_point`, fig.dewPoint ?? 'unknown', { friendly_name: `${z.name} dew point`, unit_of_measurement: '°C', device_class: 'temperature', state_class: 'measurement', icon: 'mdi:water-thermometer', humidity_sensor: z.humidity, temperature_sensor: z.temperature }]);
     items.push([`sensor.smart_ventilation_${z.id}_showers_today`, showersOn(z.id, localDay(t)), { friendly_name: `${z.name} showers today`, unit_of_measurement: 'showers', state_class: 'total_increasing', icon: 'mdi:shower-head' }]);
     items.push([`binary_sensor.smart_ventilation_${z.id}_shower_detected`, st.state === 'boost' ? 'on' : 'off', { friendly_name: `${z.name} shower detected`, device_class: 'moisture' }]);
   }
@@ -505,8 +529,10 @@ function showersOn(zoneId, day) {
 // The app's own sensors behind the tiles on Home (only with Publish sensors).
 const REFERENCE_SENSOR = 'sensor.smart_ventilation_reference';
 function ownSensors(zoneId) {
-  if (options.publish_sensors !== true) return { baseline: null, rise: null, showers: null, reference: null };
+  if (options.publish_sensors !== true) return { baseline: null, rise: null, showers: null, reference: null, dewPoint: null };
+  const z = settings.get().zones.find((x) => x.id === zoneId);
   return {
+    dewPoint: z && z.temperature ? `sensor.smart_ventilation_${zoneId}_dew_point` : null,
     baseline: `sensor.smart_ventilation_${zoneId}_baseline`,
     rise: `sensor.smart_ventilation_${zoneId}_rise`,
     showers: `sensor.smart_ventilation_${zoneId}_showers_today`,
@@ -520,7 +546,7 @@ function status() {
   const today = localDay(t);
   const acts = s.actuators.map((a) => {
     const d = advice[a.id] || {};
-    return { id: a.id, name: a.name, type: a.type, entity: a.entity, unit: actuators.isNumeric(a) ? '%' : '', advised: d.value ?? null, level: d.level || null, why: d.why || '', night: !!d.night, command: d.command || null, current: actuators.currentValue(a, entityStates.get(a.entity)), live: isLive(a, s), control: isLive(a, s) ? controlMemory[a.id] || null : null };
+    return { id: a.id, name: a.name, type: a.type, entity: a.entity, unit: actuators.isNumeric(a) ? '%' : '', advised: d.value ?? null, level: d.level || null, why: d.why || '', night: !!d.night, command: d.command || null, current: actuators.currentValue(a, entityStates.get(a.entity)), available: control.available(entityStates.get(a.entity)), atTarget: d.value === undefined ? null : control.reached(actuators.currentValue(a, entityStates.get(a.entity)), d.value, a.entity ? toleranceOf(a) : 0), live: isLive(a, s), control: isLive(a, s) ? controlMemory[a.id] || null : null };
   });
   const zones = s.zones.map((z) => {
     const st = zoneStates[z.id] || engine.newZoneState(t);
@@ -643,10 +669,11 @@ async function zoneChart(zoneId, hoursRaw) {
       ...base,
       humidity: z.humidity ? chart.line(history(z.humidity), from, t) : [],
       reference: refs.length ? chart.line(referenceHistory, from, t) : [],
+      dewPoint: z.humidity && z.temperature ? chart.line(engine.dewPointHistory(history(z.humidity), history(z.temperature)), from, t) : [],
       baseline: zoneStates[z.id] ? zoneStates[z.id].baseline : null,
     };
   }
-  const ids = [z.humidity, ...refs].filter(Boolean);
+  const ids = [z.humidity, z.temperature, ...refs].filter(Boolean);
   const key = JSON.stringify([z.id, hours, ids]);
   const hit = chartCache.get(key);
   let lines = hit && t - hit.at < CHART_CACHE_MS ? hit.data : null;
@@ -656,6 +683,7 @@ async function zoneChart(zoneId, hoursRaw) {
     lines = {
       humidity: z.humidity ? parsed[z.humidity] : [],
       reference: refs.length ? chart.referenceLine(refs.map((r) => parsed[r])) : [],
+      dewPoint: z.humidity && z.temperature ? engine.dewPointHistory(parsed[z.humidity], parsed[z.temperature]) : [],
     };
     chartCache.set(key, { at: t, data: lines });
   }
@@ -663,6 +691,7 @@ async function zoneChart(zoneId, hoursRaw) {
     ...base,
     humidity: chart.line(lines.humidity, from, t),
     reference: chart.line(lines.reference, from, t),
+    dewPoint: chart.line(lines.dewPoint, from, t),
     baseline: null, // the baseline moves; it is only drawn for the last 3 hours
   };
 }

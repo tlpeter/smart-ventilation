@@ -66,7 +66,7 @@ One zone per room.
 | Name | Shower / Bathroom | Shown on the page and in the sensors |
 | On | on | Switch a zone off without removing it |
 | Humidity sensor | – | Required |
-| Temperature sensor | – | Optional, for the temperature check |
+| Temperature sensor | – | Optional: for the dew point, and for the temperature check |
 | Actuators | – | The fan and valve(s) of this room |
 | Rise trigger | 8 points | Rise that counts as a shower |
 | Within | 5 min | The rise window |
@@ -78,6 +78,10 @@ One zone per room.
 | Baseline window | 60 min | The normal level is the median over this time |
 | Only count with temperature rise | off | Also needs the temperature to rise by… |
 | Temperature rise | 1 °C | …this much within the window |
+| Detect a shower on | Humidity rise | **Humidity rise** (points) or **Dew point rise** (°C, needs a temperature sensor) |
+| Dew point rise trigger | 2 °C | With Dew point rise: a dew point rise this big within the window counts as a shower |
+
+**Dew point.** With a temperature sensor, the app works out the dew point of the room from its own humidity and temperature sensor (Magnus formula). It is shown on Home as a tile and as a dashed line in the chart (°C, scale on the right). The relative humidity also changes when a room only warms up or cools down; the dew point only goes up when there is more water vapour in the air. So on **Dew point rise**, a room that cools down at night does not look like a shower. About 2 °C dew point rise is like 8 points of humidity at room temperature. With Dew point rise the reference sensors are not used for the rise (they give no temperature); the safety net, stopping and the baseline still use the humidity. Use the zone's own sensors: a sensor with its own warmth (for example one built into a wall display) gives a wrong dew point.
 
 All numbers are starting points: tune them with the chart on Home and the Activity tab.
 
@@ -100,11 +104,12 @@ Off: the app only shows what it would set (dry-run). On: it sets the actuators m
 How it works:
 
 1. The app sends a value **when the advice changes** (a shower starts, afterrun, back to rest), and only when the device is not at that value already.
-2. A **change by hand** (or by another automation) stays until the next change of the advice. The app does not keep setting it back.
-3. **Did a device not follow?** The app tries again after 2 minutes, 3 tries in all. Then it stops and writes it in Activity, until the next change. A fan with fixed speed steps counts as there when it is within half a step (for example 67% for 75% on a fan with 3 speeds).
-4. An **error** from Home Assistant (device not responding) is shown on Home and in Activity, and counts as a try.
-5. **Turning Live control off**, unticking **Live** on an actuator, or **stopping the app** (for example for an update) sets what the app moved back to **rest**. A value set by hand while the app asked for rest is left alone. After a restart during a shower, the boost continues and is set again.
-6. A sensor problem or a zone set to **Off** means rest, as always.
+2. A **change by hand** (or by another automation) stays until the next change of the advice. The app does not keep setting it back. Home then says the device is at another value.
+3. A device that was **unavailable** (it restarted or lost its wifi connection) often comes back at its own start value, for example a valve at 0 after recalibrating. When it is back, the app sends the advice again, and writes that in Activity. While it is unavailable, no tries are counted.
+4. **Did a device not follow?** The app tries again after 2 minutes, 3 tries in all. Then it stops and writes it in Activity, until the next change. A fan with fixed speed steps counts as there when it is within half a step (for example 67% for 75% on a fan with 3 speeds).
+5. An **error** from Home Assistant (device not responding) is shown on Home and in Activity, and counts as a try.
+6. **Turning Live control off**, unticking **Live** on an actuator, or **stopping the app** (for example for an update) sets what the app moved back to **rest**. A value set by hand while the app asked for rest is left alone. After a restart during a shower, the boost continues and is set again.
+7. A sensor problem or a zone set to **Off** means rest, as always.
 
 The app can call only the six actions in the table above, only on the actuators chosen in the app and marked Live. Everything else is refused in the code.
 
@@ -143,12 +148,12 @@ The app needs the Home Assistant config folder for this (`homeassistant_config`,
 
 ## Configuration tab (Home Assistant)
 
-- **Publish sensors** (off by default): writes the app's own sensors to Home Assistant, per zone `sensor.smart_ventilation_<zone>_state`, `sensor.smart_ventilation_<zone>_baseline`, `sensor.smart_ventilation_<zone>_rise` (rise in the window, points), `sensor.smart_ventilation_<zone>_showers_today` and `binary_sensor.smart_ventilation_<zone>_shower_detected`; once `sensor.smart_ventilation_reference` (the reference the app uses: the median of the reference sensors, which are in its `sensors` attribute), and per actuator `sensor.smart_ventilation_<actuator>_advised_level` (attribute `dry_run`: false when the app sets this actuator live). Home Assistant forgets them after its own restart; the app writes them again within 5 minutes.
+- **Publish sensors** (off by default): writes the app's own sensors to Home Assistant, per zone `sensor.smart_ventilation_<zone>_state`, `sensor.smart_ventilation_<zone>_baseline`, `sensor.smart_ventilation_<zone>_rise` (rise in the window, points), `sensor.smart_ventilation_<zone>_showers_today`, `sensor.smart_ventilation_<zone>_dew_point` (only with a temperature sensor, °C) and `binary_sensor.smart_ventilation_<zone>_shower_detected`; once `sensor.smart_ventilation_reference` (the reference the app uses: the median of the reference sensors, which are in its `sensors` attribute), and per actuator `sensor.smart_ventilation_<actuator>_advised_level` (attribute `dry_run`: false when the app sets this actuator live). Home Assistant forgets them after its own restart; the app writes them again within 5 minutes.
 - **Log level**: use debug when reporting a problem.
 
 ## Home and Activity
 
-- **Home** shows per zone: the state and why, humidity, baseline, rise in the window, reference, showers today, its own fan and valves (the position now, and where the app sets it when that is different; a valve only shows when it is under Settings › Actuators and linked to the zone), and a chart of the humidity with the boost and afterrun periods. Tap a tile to see its history: Home Assistant's own pop-up opens on the same page (the same one as when you tap an entity in Home Assistant). Humidity opens the zone's humidity sensor, reference the reference sensor, temperature the temperature sensor, a fan or valve that entity. Baseline, rise, showers today and reference are worked out by the app: with **Publish sensors** on (see below) they open the app's own sensors. Without it, baseline and rise are not clickable, showers today opens Activity, and reference opens the reference sensor (with more than one, Home Assistant's history page, last 24 hours). When the app is opened on its own, outside Home Assistant, the history page opens instead of the pop-up. Above the chart you choose how far back: **3 h** (default), **24 h**, **3 days** or **7 days**; this browser remembers it. 3 hours uses the app's own readings and shows the baseline. Longer comes from Home Assistant's history (kept 10 days by default, `recorder:` → `purge_keep_days`); the bands come from the Activity log (the last 500 lines). Below: per actuator the current value and the advice. With Live control: what the app set and whether the device followed (or the error). Without: the action the app would send. The chip at the top says **Dry-run** or **Live**.
+- **Home** shows per zone: the state and why, humidity, baseline, rise in the window, reference, temperature, dew point, showers today, its own fan and valves (the position now, and where the app sets it when that is different; a valve only shows when it is under Settings › Actuators and linked to the zone), and a chart of the humidity with the boost and afterrun periods. Tap a tile to see its history: Home Assistant's own pop-up opens on the same page (the same one as when you tap an entity in Home Assistant). Humidity opens the zone's humidity sensor, reference the reference sensor, temperature the temperature sensor, a fan or valve that entity. Baseline, rise, showers today and reference are worked out by the app: with **Publish sensors** on (see below) they open the app's own sensors. Without it, baseline and rise are not clickable, showers today opens Activity, and reference opens the reference sensor (with more than one, Home Assistant's history page, last 24 hours). When the app is opened on its own, outside Home Assistant, the history page opens instead of the pop-up. Above the chart you choose how far back: **3 h** (default), **24 h**, **3 days** or **7 days**; this browser remembers it. 3 hours uses the app's own readings and shows the baseline. Longer comes from Home Assistant's history (kept 10 days by default, `recorder:` → `purge_keep_days`); the bands come from the Activity log (the last 500 lines). Below: per actuator the current value and the advice. With Live control: what the app set and whether the device followed (or the error). Without: the action the app would send. The chip at the top says **Dry-run** or **Live**.
 - **Activity** lists every zone change, every change in advice, and with Live control every value sent (✓ or the error), newest first.
 
 ## Diagnostics
