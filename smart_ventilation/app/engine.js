@@ -143,7 +143,7 @@ function round1(x) {
 // ---------------------------------------------------------------------------
 
 function newZoneState(now) {
-  return { state: 'idle', since: now, baseline: null, boostStart: null, reason: 'Waiting for readings', absLatch: false, trigger: null, mode: 'auto', sensorProblem: null };
+  return { state: 'idle', since: now, baseline: null, boostStart: null, reason: 'Waiting for readings', absLatch: false, absLatchAt: null, trigger: null, mode: 'auto', sensorProblem: null };
 }
 
 // cfg: zone settings. st: the zone's state (changed in place and returned).
@@ -227,7 +227,15 @@ function evaluateZone(cfgIn, st, input) {
   // The absolute trigger stays off after a boost that ended on time, until
   // the room is clearly below the trigger again. Otherwise a humid day would
   // keep restarting the boost.
-  if (st.absLatch && h < cfg.absoluteTrigger - cfg.stopMargin) st.absLatch = false;
+  // It also comes back when the humidity fell clearly (the stop margin)
+  // below where it was when the lock started. Then the room was not simply
+  // humid but still drying after a long shower or bath: it gets another
+  // boost, and a new bath above the trigger is not missed.
+  if (st.absLatch && (h < cfg.absoluteTrigger - cfg.stopMargin
+    || (Number.isFinite(st.absLatchAt) && h <= st.absLatchAt - cfg.stopMargin))) {
+    st.absLatch = false;
+    st.absLatchAt = null;
+  }
 
   // 2. Look for a shower (in idle and in afterrun).
   if (st.state === 'idle' || st.state === 'afterrun') {
@@ -262,6 +270,7 @@ function evaluateZone(cfgIn, st, input) {
       go('afterrun', 'Boost by hand stopped');
     } else if (ran >= cfg.maxBoostMin * MIN) {
       st.absLatch = h >= cfg.absoluteTrigger;
+      st.absLatchAt = st.absLatch ? round1(h) : null;
       go('afterrun', `Maximum boost time of ${cfg.maxBoostMin} min reached`);
     } else if (ran >= cfg.minBoostMin * MIN) {
       let stopped = false;
@@ -275,7 +284,10 @@ function evaluateZone(cfgIn, st, input) {
       // Back to normal, but still above the absolute trigger: this room is
       // simply that humid. Without the lock the safety net would start a new
       // boost right away, again and again.
-      if (stopped && h >= cfg.absoluteTrigger) st.absLatch = true;
+      if (stopped && h >= cfg.absoluteTrigger) {
+        st.absLatch = true;
+        st.absLatchAt = round1(h);
+      }
     }
     return result(st, before);
   }

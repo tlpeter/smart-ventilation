@@ -19,7 +19,7 @@ Every zone (room) goes through the same states:
 4. **Stop** after the minimum boost time, as soon as the humidity is at most baseline + stop margin, or at most reference + stop margin. Always at the maximum boost time.
 5. **Afterrun** for its time, then back to rest. A new rise during afterrun boosts again.
 
-After a boost that ended on the maximum time, or that stopped "back to normal" while the humidity is still above the absolute trigger (a room whose normal level is that high), the absolute trigger waits until the humidity is clearly below it again (below the trigger minus the stop margin), so a humid day does not keep restarting the boost. This is kept when the app restarts.
+After a boost that ended on the maximum time, or that stopped "back to normal" while the humidity is still above the absolute trigger (a room whose normal level is that high), the absolute trigger waits until the humidity is clearly below it again (below the trigger minus the stop margin), so a humid day does not keep restarting the boost. It also works again as soon as the humidity has fallen by the stop margin from where it was when the boost stopped (for example from 98.6% to 95.6%): then the room was still drying after a long shower or bath, not simply humid. It gets another boost, and a second bath is not missed. This is kept when the app restarts.
 
 **Showers today** on Home counts only boosts started by a fast rise; a boost from the safety net is not a shower. In a humid room a shower often passes the safety net first: when the fast rise follows within the rise window, that boost counts as a shower after all.
 

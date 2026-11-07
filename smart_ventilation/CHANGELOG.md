@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.15-dev
+
+- Fix: after a long bath, the boost could stop on its maximum time while the room was still wet (98%). The safety net then stayed locked until the room was below 82%, so a second bath at 83-94% was missed. Now the safety net also works again once the humidity has fallen by the stop margin from where it was when the boost stopped. A room that is simply humid stays locked, as before.
+- Tests: this bath evening replayed, a humid room that stays locked, and the lock level after a restart.
+
 ## 0.3.14-dev
 
 - New: the **dew point** per zone, from the zone's own humidity and temperature sensor. Home shows it as a tile and as a dashed line in the chart (°C, on the right). With **Publish sensors** on there is a new sensor `sensor.smart_ventilation_<zone>_dew_point`.

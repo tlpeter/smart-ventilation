@@ -390,3 +390,48 @@ test('the figures show the dew point when there is a temperature sensor', () => 
   f = engine.zoneFigures({}, st, input(h, 0));
   assert.equal(f.dewPoint, null);
 });
+
+test('after a long bath the safety net comes back when the room is drying (7 Nov 2026)', () => {
+  // A bath: the boost runs its maximum time and stops at 98.6 %, still wet.
+  // The room then stays at 83-88 %, never below 82 %, and a second bath
+  // followed. Before, the safety-net lock stayed on and that bath was missed.
+  const h = steady(67.6, [[2, 75], [4, 82]]);
+  const st = engine.newZoneState(T0);
+  engine.evaluateZone({}, st, input(h, 4));
+  assert.equal(st.state, 'boost');
+  for (let m = 10; m <= 64; m += 2) {
+    engine.addSample(h, T0 + m * MIN, 98.6, T0 + m * MIN);
+    engine.evaluateZone({}, st, input(h, m));
+  }
+  assert.equal(st.state, 'afterrun');
+  assert.match(st.reason, /Maximum boost time/);
+  assert.equal(st.absLatch, true);
+  assert.equal(st.absLatchAt, 98.6);
+  // Drying a little, but not yet the stop margin: still locked.
+  engine.addSample(h, T0 + 66 * MIN, 96, T0 + 66 * MIN);
+  engine.evaluateZone({}, st, input(h, 66));
+  assert.equal(st.absLatch, true);
+  assert.equal(st.state, 'afterrun');
+  // Clearly drier than at the lock, but still above the trigger: the safety
+  // net works again and the room gets another boost.
+  engine.addSample(h, T0 + 68 * MIN, 88.5, T0 + 68 * MIN);
+  engine.evaluateZone({}, st, input(h, 68));
+  assert.equal(st.absLatch, false);
+  assert.equal(st.absLatchAt, null);
+  assert.equal(st.state, 'boost');
+  assert.equal(st.trigger, 'humid');
+});
+
+test('a room that is simply humid stays locked', () => {
+  const st = engine.newZoneState(T0);
+  st.absLatch = true;
+  st.absLatchAt = 87;
+  for (const m of [0, 10, 20]) engine.evaluateZone({}, st, input(steady(86.5), m));
+  assert.equal(st.absLatch, true);
+  assert.equal(st.state, 'idle');
+  // An old saved lock without a level only opens below the trigger.
+  const old = engine.newZoneState(T0);
+  old.absLatch = true;
+  engine.evaluateZone({}, old, input(steady(83), 0));
+  assert.equal(old.absLatch, true);
+});

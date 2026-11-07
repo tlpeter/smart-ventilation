@@ -67,6 +67,15 @@ test('after a restart, a room still at 90 % after a maximum-time boost gets no n
   assert.equal(st.zones[0].state, 'idle', st.zones[0].reason);
 });
 
+test('the level of the lock survives a restart', async () => {
+  // Locked at 98.6 % after a bath; now 90 %: clearly drier, so the safety net works again.
+  let st = await startWith({ savedAt, zones: { shower: { state: 'idle', since: savedAt, reason: 'Afterrun done', absLatch: true, absLatchAt: 98.6 } } });
+  assert.equal(st.zones[0].state, 'boost', st.zones[0].reason);
+  // Locked at 91 %: 90 % is not clearly drier, so it stays locked.
+  st = await startWith({ savedAt, zones: { shower: { state: 'idle', since: savedAt, reason: 'Afterrun done', absLatch: true, absLatchAt: 91 } } });
+  assert.equal(st.zones[0].state, 'idle', st.zones[0].reason);
+});
+
 test('without that lock, 90 % does start the safety net (so the test above means something)', async () => {
   const st = await startWith({ savedAt, zones: { shower: { state: 'idle', since: savedAt, baseline: null, boostStart: null, reason: 'Normal', absLatch: false } } });
   assert.equal(st.zones[0].state, 'boost');

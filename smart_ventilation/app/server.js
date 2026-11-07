@@ -71,7 +71,10 @@ function restoreRuntime() {
     // Keep the safety-net lock: after a boost that ran its maximum time, the
     // absolute trigger waits until the room is clearly drier. A restart (for
     // example an update) must not start a new boost because of it.
-    if (old && old.absLatch === true) zoneStates[z.id].absLatch = true;
+    if (old && old.absLatch === true) {
+      zoneStates[z.id].absLatch = true;
+      zoneStates[z.id].absLatchAt = Number.isFinite(old.absLatchAt) ? old.absLatchAt : null;
+    }
     // Keep Off, and a boost by hand that is still running.
     if (old && old.mode === 'off') zoneStates[z.id].mode = 'off';
     else if (old && old.mode === 'boost' && fresh && old.state === 'boost') zoneStates[z.id].mode = 'boost';
