@@ -1,49 +1,37 @@
-/* Look and feel: Home Assistant's default theme with Mushroom-style cards,
-   the same as the other planner apps. */
+/* Use the active Home Assistant theme, with its default colours as fallbacks. */
 :root {
-  --bg: #f3f1ec;
-  --card: #fffdf9;
-  --surface: #f0eee9;
-  --text: #263238;
-  --muted: #6f777b;
-  --border: #e5e1d9;
-  --accent: #1f8fb8;
-  --rgb-accent: 31, 143, 184;
-  --accent-text: #ffffff;
-  --good: #388e6c;
-  --rgb-good: 56, 142, 108;
-  --warning: #bd7c20;
-  --rgb-warning: 189, 124, 32;
-  --bad: #c65353;
-  --rgb-bad: 198, 83, 83;
-  --chip: rgba(66, 72, 76, 0.065);
-  --grid: #e7e4de;
-  --dew: #7b5ea7;
-  --radius: 18px;
-  --shadow: 0 3px 14px rgba(50, 55, 60, 0.07);
+  color-scheme: light;
+  --bg: var(--primary-background-color, #fafafa);
+  --card: var(--ha-card-background, var(--card-background-color, #fff));
+  --surface: var(--input-fill-color, var(--secondary-background-color, #e5e5e5));
+  --text: var(--primary-text-color, #212121);
+  --muted: var(--secondary-text-color, #727272);
+  --border: var(--divider-color, rgba(0, 0, 0, 0.12));
+  --accent: var(--primary-color, #03a9f4);
+  --accent-text: var(--text-primary-color, #fff);
+  --good: var(--success-color, #388e6c);
+  --warning: var(--warning-color, #a57619);
+  --bad: var(--error-color, #c65353);
+  --chip: color-mix(in srgb, var(--text) 6%, transparent);
+  --grid: var(--border);
+  --dew: var(--purple-color, #7b5ea7);
+  --radius: var(--ha-card-border-radius, 12px);
+  --card-border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--border));
+  --shadow: var(--ha-card-box-shadow, none);
+  --font: var(--ha-font-family-body, var(--paper-font-body1_-_font-family, var(--mdc-typography-font-family, Roboto, "Noto Sans", system-ui, sans-serif)));
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #17191c;
-    --card: #222529;
-    --surface: #2b2e33;
-    --text: #eef0f2;
-    --muted: #a7adb2;
-    --border: #34383e;
-    --accent: #5cc3e6;
-    --rgb-accent: 92, 195, 230;
-    --accent-text: #0e2630;
-    --good: #72c6a1;
-    --rgb-good: 114, 198, 161;
-    --warning: #e1b34d;
-    --rgb-warning: 225, 179, 77;
-    --bad: #ee8585;
-    --rgb-bad: 238, 133, 133;
-    --chip: rgba(255, 255, 255, 0.07);
-    --grid: #30343a;
-    --dew: #b9a0e0;
-    --shadow: none;
-  }
+:root[data-scheme=dark] {
+  color-scheme: dark;
+  --bg: var(--primary-background-color, #111);
+  --card: var(--ha-card-background, var(--card-background-color, #1c1c1c));
+  --surface: var(--input-fill-color, var(--secondary-background-color, #282828));
+  --text: var(--primary-text-color, #e1e1e1);
+  --muted: var(--secondary-text-color, #9b9b9b);
+  --border: var(--divider-color, rgba(225, 225, 225, 0.12));
+  --good: var(--success-color, #72c6a1);
+  --warning: var(--warning-color, #e1b34d);
+  --bad: var(--error-color, #ee8585);
+  --dew: var(--purple-color, #b9a0e0);
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -51,7 +39,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.45 Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 15px/1.45 var(--font);
 }
 main { max-width: 860px; margin: 0 auto; padding: 16px 16px 48px; }
 h1 { font-size: 22px; margin: 0; font-weight: 600; }
@@ -72,7 +60,7 @@ h3 { font-size: 15px; margin: 14px 0 6px; font-weight: 600; }
 .tab.active, .subtab.active { background: var(--accent); color: var(--accent-text); }
 
 .card {
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--card); border: var(--card-border); border-radius: var(--radius);
   box-shadow: var(--shadow); padding: 16px; margin-bottom: 12px;
 }
 .row { display: flex; align-items: center; gap: 12px; }
@@ -80,11 +68,11 @@ h3 { font-size: 15px; margin: 14px 0 6px; font-weight: 600; }
 .spacer { flex: 1; }
 .icon {
   width: 42px; height: 42px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  background: rgba(var(--rgb-accent), 0.14); color: var(--accent); font-size: 20px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-size: 20px;
 }
-.icon.boost { background: rgba(var(--rgb-accent), 0.25); }
-.icon.afterrun { background: rgba(var(--rgb-good), 0.18); color: var(--good); }
-.icon.fault { background: rgba(var(--rgb-bad), 0.16); color: var(--bad); }
+.icon.boost { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+.icon.afterrun { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+.icon.fault { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
 .icon.off, .icon.idle { background: var(--chip); color: var(--muted); }
 .spin { display: inline-block; animation: spin 1.4s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -94,11 +82,11 @@ h3 { font-size: 15px; margin: 14px 0 6px; font-weight: 600; }
   display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px;
   background: var(--chip); font-size: 13px; white-space: nowrap;
 }
-.chip.boost { background: rgba(var(--rgb-accent), 0.18); color: var(--accent); font-weight: 600; }
-.chip.afterrun { background: rgba(var(--rgb-good), 0.16); color: var(--good); font-weight: 600; }
-.chip.fault { background: rgba(var(--rgb-bad), 0.15); color: var(--bad); font-weight: 600; }
-.chip.warn { background: rgba(var(--rgb-warning), 0.16); color: var(--warning); font-weight: 600; }
-.chip.live { background: rgba(var(--rgb-good), 0.16); color: var(--good); font-weight: 600; }
+.chip.boost { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-weight: 600; }
+.chip.afterrun { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); font-weight: 600; }
+.chip.fault { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad); font-weight: 600; }
+.chip.warn { background: color-mix(in srgb, var(--warning) 16%, transparent); color: var(--warning); font-weight: 600; }
+.chip.live { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); font-weight: 600; }
 .card.live-on { border-left: 4px solid var(--good); }
 
 .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 12px 0 6px; }
@@ -106,14 +94,14 @@ h3 { font-size: 15px; margin: 14px 0 6px; font-weight: 600; }
 .figure b { display: block; font-size: 18px; font-weight: 600; }
 .figure span { font-size: 12px; color: var(--muted); }
 a.figure.link { display: block; color: inherit; text-decoration: none; cursor: pointer; transition: background .15s, border-color .15s; }
-a.figure.link:hover, a.figure.link:focus-visible { background: rgba(var(--rgb-accent), .12); outline: none; }
+a.figure.link:hover, a.figure.link:focus-visible { background: color-mix(in srgb, var(--accent) 12%, transparent); outline: none; }
 a.figure.link[target] b::after { content: ' ›'; font-size: 12px; font-weight: 400; color: var(--muted); opacity: 0; transition: opacity .15s; }
 a.figure.link[target]:hover b::after, a.figure.link[target]:focus-visible b::after { opacity: 1; }
 @media (hover: none) { a.figure.link[target] b::after { opacity: 1; } }
 .devices { margin-top: 0; }
 .figure.device { border: 1px solid var(--border); background: transparent; }
-.figure.device.boost { border-color: rgba(var(--rgb-accent), .6); background: rgba(var(--rgb-accent), .08); }
-.figure.device.afterrun { border-color: rgba(var(--rgb-good), .6); background: rgba(var(--rgb-good), .08); }
+.figure.device.boost { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.figure.device.afterrun { border-color: color-mix(in srgb, var(--good) 60%, transparent); background: color-mix(in srgb, var(--good) 8%, transparent); }
 .figure span { overflow-wrap: anywhere; }
 
 .chart { width: 100%; height: auto; display: block; margin-top: 8px; }
@@ -134,7 +122,7 @@ input, select {
   width: 100%; font: inherit; color: var(--text); background: var(--surface);
   border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
 }
-input[type=checkbox] { width: auto; margin: 0 6px 0 0; }
+input[type=checkbox] { accent-color: var(--accent); width: auto; margin: 0 6px 0 0; }
 .check { display: flex; align-items: center; margin: 6px 0; cursor: pointer; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 12px; }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.16-dev
+
+- Smart Ventilation follows your Home Assistant theme, including its colours, card styling, font and light or dark mode, just like Smart Charging Planner and Smart Heating Planner.
+
 ## 0.3.15-dev
 
 - Fix: after a long bath, the boost could stop on its maximum time while the room was still wet (98%). The safety net then stayed locked until the room was below 82%, so a second bath at 83-94% was missed. Now the safety net also works again once the humidity has fallen by the stop margin from where it was when the boost stopped. A room that is simply humid stays locked, as before.

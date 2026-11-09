@@ -144,7 +144,7 @@ function zoneCard(z) {
     <div class="muted small">${since}</div>
     <div class="chart-head"><span class="small muted">${RANGE_TITLE[chartHours]}</span>${rangeButtons()}</div>
     <svg class="chart" id="chart-${esc(z.id)}" viewBox="0 0 600 170" role="img" aria-label="Humidity, ${RANGE_TITLE[chartHours].toLowerCase()}"></svg>
-    <div class="legend"><span><i style="background:var(--accent)"></i>humidity</span>${f.dewPoint !== null ? '<span><i style="background:var(--dew)"></i>dew point (°C, right)</span>' : ''}<span><i style="background:var(--muted)"></i>reference</span>${chartHours === 3 ? '<span><i style="background:var(--warning)"></i>baseline</span>' : ''}<span><i style="background:rgba(var(--rgb-accent),.3);height:8px"></i>boost</span><span><i style="background:rgba(var(--rgb-good),.3);height:8px"></i>afterrun</span></div>
+    <div class="legend"><span><i style="background:var(--accent)"></i>humidity</span>${f.dewPoint !== null ? '<span><i style="background:var(--dew)"></i>dew point (°C, right)</span>' : ''}<span><i style="background:var(--muted)"></i>reference</span>${chartHours === 3 ? '<span><i style="background:var(--warning)"></i>baseline</span>' : ''}<span><i style="background:color-mix(in srgb, var(--accent) 30%, transparent);height:8px"></i>boost</span><span><i style="background:color-mix(in srgb, var(--good) 30%, transparent);height:8px"></i>afterrun</span></div>
   </div>`;
 }
 
@@ -283,7 +283,7 @@ async function drawChart(zoneId) {
   };
   let out = '';
   for (const s of c.spans) {
-    const color = s.state === 'boost' ? 'rgba(var(--rgb-accent),.18)' : 'rgba(var(--rgb-good),.16)';
+    const color = s.state === 'boost' ? 'color-mix(in srgb, var(--accent) 18%, transparent)' : 'color-mix(in srgb, var(--good) 16%, transparent)';
     out += `<rect x="${X(s.from).toFixed(1)}" y="${T}" width="${Math.max(1, X(s.to) - X(s.from)).toFixed(1)}" height="${H - T - B}" style="fill:${color}"/>`;
   }
   for (let i = 0; i <= ticks; i++) {

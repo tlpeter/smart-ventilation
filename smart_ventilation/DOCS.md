@@ -2,6 +2,8 @@
 
 Ventilates showers and bathrooms on the humidity curve. By default it is a **dry-run**: it shows what it would set, and never changes your fan or valves. With **Live control** on (Settings › General) it really sets them.
 
+The app follows your Home Assistant theme and updates when you change it. If you open the app on its own, it uses default colours and follows your device’s light or dark setting.
+
 ## How it works
 
 Every zone (room) goes through the same states:

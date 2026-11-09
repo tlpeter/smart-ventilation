@@ -9,6 +9,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const vm = require('node:vm');
 const { spawn } = require('child_process');
 const { startFakeHa } = require('./fake-ha');
 
@@ -89,6 +90,68 @@ test('the app against a fake Home Assistant', async (t) => {
     const st = await get('/api/status');
     assert.equal(st.mode, 'dry-run', 'Live control is off by default');
     assert.equal(st.configured, false);
+  });
+
+  await t.test('the page loads the Home Assistant theme and follows theme changes', async () => {
+    const page = await fetch(base + '/');
+    assert.match(await page.text(), /<script src="theme\.js"><\/script>/);
+    const script = await fetch(base + '/theme.js');
+    assert.equal(script.status, 200);
+    assert.match(script.headers.get('content-type'), /^application\/javascript/);
+
+    const active = new Map([
+      ['--primary-color', '#a657cc'],
+      ['--primary-background-color', 'rgb(20, 22, 30)'],
+      ['--ha-card-border-radius', '20px'],
+    ]);
+    const copied = new Map();
+    const root = {
+      style: {
+        setProperty: (name, value) => copied.set(name, value),
+        removeProperty: (name) => copied.delete(name),
+      },
+      dataset: {},
+      appendChild() {},
+    };
+    const parent = {
+      document: {
+        documentElement: {},
+        styleSheets: [],
+        defaultView: { getComputedStyle: () => ({ getPropertyValue: (name) => active.get(name) }) },
+      },
+    };
+    let refreshTheme;
+    let browserDark = false;
+    const window = { parent, MutationObserver: true, matchMedia: () => ({ matches: browserDark }) };
+    const document = {
+      documentElement: root,
+      createElement: () => ({ style: {}, remove() {} }),
+      readyState: 'complete',
+      addEventListener() {},
+    };
+    vm.runInNewContext(await script.text(), {
+      window,
+      document,
+      getComputedStyle: (probe) => probe.style,
+      MutationObserver: class {
+        constructor(callback) { refreshTheme = callback; }
+        observe() {}
+      },
+    });
+    assert.deepEqual(copied, active);
+    assert.equal(root.dataset.scheme, 'dark');
+
+    browserDark = true;
+    active.set('--primary-background-color', 'rgb(250, 250, 250)');
+    active.delete('--ha-card-border-radius');
+    refreshTheme();
+    assert.equal(root.dataset.scheme, 'light');
+    assert.deepEqual(copied, active);
+
+    Object.defineProperty(parent, 'document', { get() { throw new Error('Cross-origin frame'); } });
+    refreshTheme();
+    assert.equal(root.dataset.scheme, 'dark');
+    assert.equal(copied.size, 0);
   });
 
   await t.test('entity pickers offer the right entities', async () => {

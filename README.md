@@ -6,6 +6,8 @@ A Home Assistant app (add-on) that ventilates showers and bathrooms on the **hum
 
 > **Test version.** By default the app is a dry-run: it follows your sensors and shows what it *would* set, and never sends anything to your fan or valves. When you trust it, turn on **Live control** (Settings › General): then it really sets them. Turn off your own automations or blueprints for those fans and valves first.
 
+Smart Ventilation follows your active Home Assistant theme, including custom colours and light or dark mode.
+
 ## What it does
 
 - **Detects a shower by the rise**, not by a fixed level: for example +8 points within 5 minutes. A fixed 70% goes off too early in summer and too late in winter.
